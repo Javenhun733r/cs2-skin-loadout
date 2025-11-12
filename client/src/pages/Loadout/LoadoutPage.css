@@ -1,0 +1,42 @@
+.LoadoutHeader {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	margin-bottom: 2rem;
+}
+
+.BackLink {
+	text-decoration: none;
+	color: #007bff;
+	font-size: 16px;
+	white-space: nowrap;
+}
+
+.BackLink:hover {
+	text-decoration: underline;
+}
+
+.LoadoutHeader h2 {
+	margin: 0;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.ColorChip {
+	display: inline-block;
+	width: 24px;
+	height: 24px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+}
+
+.ResultsHeader {
+	text-align: center;
+	color: #555;
+}
+
+.ErrorText {
+	color: red;
+	text-align: center;
+}
