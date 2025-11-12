@@ -1,13 +1,62 @@
-/* src/index.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+	--font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+		'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+		'Helvetica Neue', sans-serif;
+
+	--color-background: #f4f7f6;
+	--color-surface: #ffffff;
+	--color-text-primary: #222;
+	--color-text-secondary: #555;
+	--color-border: #ddd;
+	--color-primary: #007bff;
+	--color-primary-dark: #0056b3;
+	--color-shadow: rgba(0, 0, 0, 0.05);
+	--color-info-bg: #e0f7fa;
+	--color-info-text: #006064;
+	--color-info-border: #b2ebf2;
+
+	--color-error-bg: #ffebee;
+	--color-error-text: #c62828;
+	--color-error-border: #ffcdd2;
+
+	--color-disabled-bg: #ccc;
+	--color-disabled-text: #888;
+
+	--spacing: 1rem;
+	--radius: 8px;
+}
+
+[data-theme='dark'] {
+	--color-background: #121212;
+	--color-surface: #1e1e1e;
+	--color-text-primary: #eeeeee;
+	--color-text-secondary: #999;
+	--color-border: #444;
+	--color-primary: #0088ff;
+	--color-primary-dark: #0066cc;
+	--color-shadow: rgba(0, 0, 0, 0.2);
+	--color-info-bg: #014044;
+	--color-info-text: #b2ebf2;
+	--color-info-border: #006064;
+
+	--color-error-bg: #4c1010;
+	--color-error-text: #ffcdd2;
+	--color-error-border: #c62828;
+
+	--color-disabled-bg: #333;
+	--color-disabled-text: #777;
+}
+
 body {
 	margin: 0;
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-		'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-		sans-serif;
+	font-family: var(--font-family);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
-	background-color: #f4f7f6;
-	color: #333;
+	background-color: var(--color-background);
+	color: var(--color-text-primary);
+	transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 * {

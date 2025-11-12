@@ -2,18 +2,21 @@
 	padding: 10px 15px;
 	font-size: 16px;
 	cursor: pointer;
-	background-color: #007bff;
-	color: white;
+	background-color: var(--color-primary);
+	color: var(--color-white);
 	border: none;
-	border-radius: 5px;
+	border-radius: var(--radius);
 	transition: background-color 0.2s ease;
+	font-weight: 500;
+	font-family: inherit;
 }
 
 .Button:hover {
-	background-color: #0056b3;
+	background-color: var(--color-primary-dark);
 }
 
 .Button:disabled {
-	background-color: #ccc;
+	background-color: var(--color-disabled-bg);
+	color: var(--color-disabled-text);
 	cursor: not-allowed;
 }

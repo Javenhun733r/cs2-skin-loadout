@@ -1,11 +1,15 @@
 .AppHeader {
-	text-align: center;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+
 	margin-bottom: 2rem;
-	border-bottom: 2px solid #eee;
+	border-bottom: 2px solid var(--color-border);
 	padding-bottom: 1rem;
 }
 
 .HeaderLink {
 	text-decoration: none;
 	color: inherit;
+	text-align: center;
 }

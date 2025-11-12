@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, Skin } from '@prisma/client';
+import { PricingService } from 'src/pricing/pricing.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 interface RgbColor {
@@ -7,14 +8,20 @@ interface RgbColor {
   g: number;
   b: number;
 }
-
+type SkinWithData = Skin & {
+  distance?: number;
+  price?: { min: number; max: number } | null;
+};
 @Injectable()
 export class SkinsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private pricingService: PricingService,
+  ) {}
   async findSkinsByColor(
     hexColor: string,
     limit: number = 20,
-  ): Promise<(Skin & { distance: number })[]> {
+  ): Promise<Promise<SkinWithData[]>> {
     const targetRgb = this.hexToRgb(hexColor);
     if (!targetRgb) {
       throw new Error('Invalid HEX color format.');
@@ -41,7 +48,10 @@ export class SkinsService {
     const skins =
       await this.prisma.$queryRaw<(Skin & { distance: number })[]>(query);
 
-    return skins;
+    return skins.map((skin) => ({
+      ...skin,
+      price: this.pricingService.getPriceByName(skin.name),
+    }));
   }
 
   private hexToRgb(hex: string): RgbColor | null {
@@ -55,12 +65,15 @@ export class SkinsService {
       : null;
   }
 
-  async searchSkinsByName(name: string, limit: number = 10): Promise<Skin[]> {
+  async searchSkinsByName(
+    name: string,
+    limit: number = 10,
+  ): Promise<SkinWithData[]> {
     if (!name || name.trim() === '') {
       return [];
     }
 
-    return this.prisma.skin.findMany({
+    const skins = await this.prisma.skin.findMany({
       where: {
         name: {
           contains: name,
@@ -69,11 +82,14 @@ export class SkinsService {
       },
       take: limit,
     });
+
+    return skins.map((skin) => ({
+      ...skin,
+      price: this.pricingService.getPriceByName(skin.name),
+    }));
   }
 
-  async findLoadoutByColor(
-    hexColor: string,
-  ): Promise<(Skin & { distance: number })[]> {
+  async findLoadoutByColor(hexColor: string): Promise<SkinWithData[]> {
     const targetRgb = this.hexToRgb(hexColor);
     if (!targetRgb) {
       throw new Error('Invalid HEX color format.');
@@ -121,6 +137,9 @@ export class SkinsService {
     const loadoutSkins =
       await this.prisma.$queryRaw<(Skin & { distance: number })[]>(query);
 
-    return loadoutSkins;
+    return loadoutSkins.map((skin) => ({
+      ...skin,
+      price: this.pricingService.getPriceByName(skin.name),
+    }));
   }
 }

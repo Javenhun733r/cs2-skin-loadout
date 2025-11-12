@@ -1,0 +1,23 @@
+.EmptyState {
+	text-align: center;
+	padding: 4rem 2rem;
+	background-color: var(--color-surface);
+	border: 1px dashed var(--color-border);
+	border-radius: var(--radius);
+	margin-top: 2rem;
+	transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.EmptyState h3 {
+	font-size: 1.25rem;
+	font-weight: 600;
+	color: var(--color-text-primary);
+	margin-top: 0;
+	margin-bottom: 0.5rem;
+}
+
+.EmptyState p {
+	font-size: 1rem;
+	color: var(--color-text-secondary);
+	margin: 0;
+}

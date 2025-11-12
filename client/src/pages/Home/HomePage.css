@@ -10,10 +10,11 @@
 .SearchBox {
 	flex: 1;
 	min-width: 300px;
-	background: #fff;
+	background: var(--color-surface);
 	padding: 20px;
-	border-radius: 8px;
-	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+	border-radius: var(--radius);
+	box-shadow: 0 2px 4px var(--color-shadow);
+	transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .ColorControls {
@@ -25,7 +26,8 @@
 .ColorPicker {
 	width: 60px;
 	height: 40px;
-	border: none;
+	border: 1px solid var(--color-border);
+	border-radius: 4px; /* A little smaller radius for this */
 	padding: 0;
 	cursor: pointer;
 }
@@ -33,12 +35,20 @@
 .Divider {
 	align-self: center;
 	font-weight: bold;
-	color: #888;
+	color: var(--color-text-secondary);
 	padding: 0 20px;
+	transition: color 0.2s ease;
 }
 
 .SearchContainer {
 	position: relative;
+}
+
+.SearchLabel {
+	display: block;
+	font-weight: 500;
+	margin-bottom: 0.75rem;
+	color: var(--color-text-primary);
 }
 
 .SearchResults {
@@ -46,32 +56,40 @@
 	top: 100%;
 	left: 0;
 	right: 0;
-	background: #fff;
-	border: 1px solid #ddd;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
 	max-height: 300px;
 	overflow-y: auto;
 	z-index: 10;
-	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-	border-radius: 0 0 5px 5px;
+	box-shadow: 0 4px 6px var(--color-shadow);
+	border-radius: 0 0 var(--radius) var(--radius);
+	margin-top: -1px;
 }
 
 .SearchResultItem {
-	padding: 10px;
+	padding: 12px;
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	gap: 10px;
-	color: #333;
+	gap: 12px;
+	color: var(--color-text-primary);
+	transition: background-color 0.15s ease;
 }
 
 .SearchResultItem:hover {
-	background-color: #f0f0f0;
+	background-color: var(--color-background);
+}
+
+.SearchResultItem:not(:last-child) {
+	border-bottom: 1px solid var(--color-border);
 }
 
 .SearchResultImage {
-	width: 50px;
-	height: auto;
+	width: 60px;
+	height: 45px;
 	object-fit: contain;
+	border-radius: 4px;
+	background-color: var(--color-background);
 }
 
 .LoadoutButtonContainer {
@@ -89,7 +107,7 @@
 	text-align: center;
 	margin-bottom: 20px;
 	padding-bottom: 20px;
-	border-bottom: 1px solid #eee;
+	border-bottom: 1px solid var(--color-border);
 }
 
 .SelectedSkinArea .SkinCard {
@@ -100,11 +118,12 @@
 
 .ResultsHeader {
 	text-align: center;
-	border-bottom: 1px solid #eee;
+	border-bottom: 1px solid var(--color-border);
 	padding-bottom: 10px;
+	color: var(--color-text-secondary);
 }
 
 .ErrorText {
-	color: red;
+	color: var(--color-error-text);
 	text-align: center;
 }

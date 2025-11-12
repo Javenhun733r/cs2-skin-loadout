@@ -2,14 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SkinCard } from '../../components/skin-card/SkinCard';
 import { SkinGrid } from '../../components/skin-grid/SkinGrid';
+import { Alert } from '../../components/ui/alert/Alert';
 import { Button } from '../../components/ui/button/Button';
 import { SearchInput } from '../../components/ui/search-input/SearchInput';
+import { Spinner } from '../../components/ui/spinner/Spinner';
+import { EmptyState } from '../../components/ui/states/EmptyState';
 import { useDebounce } from '../../hooks/useDebounce';
 import * as api from '../../lib/api';
 import { rgbToHex } from '../../lib/utils';
 import type { Skin, SkinWithDistance } from '../../types/types';
 import './HomePage.css';
-
 function HomePage() {
 	const [color, setColor] = useState('#663399');
 	const [searchQuery, setSearchQuery] = useState('');
@@ -59,7 +61,8 @@ function HomePage() {
 		setSelectedSkin(null);
 		findSimilar(color);
 	};
-
+	const showEmptyState =
+		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
 	const handleFindLoadout = () => {
 		const targetHex = selectedSkin
 			? rgbToHex(
@@ -83,11 +86,14 @@ function HomePage() {
 		<div>
 			<div className='SearchArea'>
 				<div className='SearchBox'>
-					<p>Find skins matching a color:</p>
+					<label htmlFor='color-picker' className='SearchLabel'>
+						Find skins matching a color:
+					</label>
 					<div className='ColorControls'>
 						<input
 							type='color'
 							value={color}
+							id='color-picker'
 							onChange={e => setColor(e.target.value)}
 							className='ColorPicker'
 						/>
@@ -100,9 +106,12 @@ function HomePage() {
 				<span className='Divider'>OR</span>
 
 				<div className='SearchBox'>
-					<p>Find skins by item name:</p>
+					<label htmlFor='search-input' className='SearchLabel'>
+						Find skins by item name:
+					</label>
 					<div className='SearchContainer'>
 						<SearchInput
+							id='search-input'
 							placeholder='e.g., Asiimov, Case Hardened...'
 							value={searchQuery}
 							onChange={e => setSearchQuery(e.target.value)}
@@ -145,9 +154,14 @@ function HomePage() {
 					</div>
 				)}
 
-				{isLoading && <h2 className='ResultsHeader'>Loading...</h2>}
-				{error && <p className='ErrorText'>{error}</p>}
-
+				{isLoading && <Spinner />}
+				{error && <Alert type='error'>{error}</Alert>}
+				{showEmptyState && (
+					<EmptyState
+						title='Find Your Perfect Skin'
+						message='Start by searching for a skin by name or picking a color.'
+					/>
+				)}
 				{!isLoading && similarSkins.length > 0 && (
 					<section>
 						<h2 className='ResultsHeader'>Similar Skins</h2>

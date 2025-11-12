@@ -13,6 +13,7 @@ export interface Skin {
 	accentR: number;
 	accentG: number;
 	accentB: number;
+	price?: { min: number; max: number } | null;
 }
 
 export type SkinWithDistance = Skin & {

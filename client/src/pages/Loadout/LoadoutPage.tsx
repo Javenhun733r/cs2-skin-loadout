@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SkinCard } from '../../components/skin-card/SkinCard';
 import { SkinGrid } from '../../components/skin-grid/SkinGrid';
+import { Alert } from '../../components/ui/alert/Alert';
+import { Spinner } from '../../components/ui/spinner/Spinner';
 import * as api from '../../lib/api';
 import type { SkinWithDistance } from '../../types/types';
 import './LoadoutPage.css';
@@ -10,16 +12,16 @@ function LoadoutPage() {
 	const [loadout, setLoadout] = useState<SkinWithDistance[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 
-	const color = searchParams.get('color');
+	const [color, setColor] = useState(searchParams.get('color') || '663399');
 
 	useEffect(() => {
 		if (!color) {
 			setError('No color specified.');
 			return;
 		}
-
+		setSearchParams({ color });
 		const loadData = async () => {
 			setIsLoading(true);
 			setError(null);
@@ -34,7 +36,7 @@ function LoadoutPage() {
 		};
 
 		loadData();
-	}, [color]);
+	}, [color, setSearchParams]);
 	return (
 		<section>
 			<div className='LoadoutHeader'>
@@ -43,17 +45,23 @@ function LoadoutPage() {
 				</Link>
 				<h2>
 					Full Loadout for:{' '}
-					<span
-						className='ColorChip'
-						style={{ backgroundColor: `#${color}` }}
-					/>{' '}
+					<input
+						type='color'
+						className='ColorPicker'
+						value={`#${color}`}
+						onChange={e => setColor(e.target.value.replace('#', ''))}
+					/>
 					#{color}
 				</h2>
 			</div>
 
 			<main>
-				{isLoading && <h2 className='ResultsHeader'>Building Loadout...</h2>}
-				{error && <p className='ErrorText'>{error}</p>}
+				{isLoading && <Spinner />}
+				{error && <Alert type='error'>{error}</Alert>}
+
+				{!isLoading && !error && loadout.length === 0 && (
+					<Alert type='info'>No weapon skins found for this color.</Alert>
+				)}
 
 				{!isLoading && loadout.length > 0 && (
 					<SkinGrid>
