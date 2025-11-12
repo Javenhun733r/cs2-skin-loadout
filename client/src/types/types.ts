@@ -4,16 +4,22 @@ export interface Skin {
 	image: string;
 	weapon: string | null;
 	rarity: string | null;
-	primaryR: number;
-	primaryG: number;
-	primaryB: number;
-	secondaryR: number;
-	secondaryG: number;
-	secondaryB: number;
-	accentR: number;
-	accentG: number;
-	accentB: number;
+	type: string;
 	price?: { min: number; max: number } | null;
+
+	histRed: number;
+	histOrange: number;
+	histYellow: number;
+	histGreen: number;
+	histCyan: number;
+	histBlue: number;
+	histPurple: number;
+	histPink: number;
+	histBrown: number;
+	histBlack: number;
+	histGray: number;
+	histWhite: number;
+	dominantHex: string;
 }
 
 export type SkinWithDistance = Skin & {

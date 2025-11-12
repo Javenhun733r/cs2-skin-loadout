@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 
 export class FindLoadoutDto {
   @IsString()
@@ -8,4 +8,7 @@ export class FindLoadoutDto {
       'Invalid "color" format. Use 6-digit HEX (e.g., FF0000 or #FF0000).',
   })
   color: string;
+  @IsOptional()
+  @IsString()
+  mode?: 'premium' | 'budget' = 'premium';
 }

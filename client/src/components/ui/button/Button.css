@@ -1,22 +1,33 @@
 .Button {
 	padding: 10px 15px;
-	font-size: 16px;
+	font-size: 15px;
 	cursor: pointer;
 	background-color: var(--color-primary);
 	color: var(--color-white);
 	border: none;
 	border-radius: var(--radius);
-	transition: background-color 0.2s ease;
+
 	font-weight: 500;
 	font-family: inherit;
+	box-shadow: var(--shadow-sm);
+	transition: all 0.2s ease;
 }
 
 .Button:hover {
 	background-color: var(--color-primary-dark);
+
+	transform: translateY(-1px);
+	box-shadow: var(--shadow-md);
+}
+
+.Button:active {
+	transform: translateY(0px);
 }
 
 .Button:disabled {
 	background-color: var(--color-disabled-bg);
 	color: var(--color-disabled-text);
 	cursor: not-allowed;
+	transform: none;
+	box-shadow: none;
 }

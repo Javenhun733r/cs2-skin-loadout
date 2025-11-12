@@ -9,9 +9,12 @@ import { Spinner } from '../../components/ui/spinner/Spinner';
 import { EmptyState } from '../../components/ui/states/EmptyState';
 import { useDebounce } from '../../hooks/useDebounce';
 import * as api from '../../lib/api';
-import { rgbToHex } from '../../lib/utils';
+
 import type { Skin, SkinWithDistance } from '../../types/types';
 import './HomePage.css';
+
+type SearchMode = 'premium' | 'budget';
+
 function HomePage() {
 	const [color, setColor] = useState('#663399');
 	const [searchQuery, setSearchQuery] = useState('');
@@ -21,16 +24,22 @@ function HomePage() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const [searchMode, setSearchMode] = useState<SearchMode>('premium');
+
 	const debouncedSearchQuery = useDebounce(searchQuery, 300);
 	const navigate = useNavigate();
 
-	const findSimilar = useCallback(
+	const findSimilarByColor = useCallback(
 		async (targetHex: string) => {
 			setIsLoading(true);
 			setError(null);
 			setSimilarSkins([]);
 			try {
-				const data = await api.findSimilarSkins(targetHex);
+				const data = await api.findSimilarSkinsByColor(
+					targetHex,
+					20,
+					searchMode
+				);
 				setSimilarSkins(data.filter(skin => skin.id !== selectedSkin?.id));
 			} catch (err) {
 				setError((err as Error).message);
@@ -38,7 +47,24 @@ function HomePage() {
 				setIsLoading(false);
 			}
 		},
-		[selectedSkin]
+		[selectedSkin, searchMode]
+	);
+	const findSimilarBySkin = useCallback(
+		async (skinId: string) => {
+			setIsLoading(true);
+			setError(null);
+			setSimilarSkins([]);
+			try {
+				const data = await api.findSimilarSkinsBySkinId(skinId, 20, searchMode);
+
+				setSimilarSkins(data.filter(skin => skin.id !== skinId));
+			} catch (err) {
+				setError((err as Error).message);
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[searchMode]
 	);
 
 	useEffect(() => {
@@ -59,27 +85,23 @@ function HomePage() {
 
 	const handleColorPickerSearch = () => {
 		setSelectedSkin(null);
-		findSimilar(color);
+		findSimilarByColor(color);
 	};
+
 	const showEmptyState =
 		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
+
 	const handleFindLoadout = () => {
-		const targetHex = selectedSkin
-			? rgbToHex(
-					selectedSkin.primaryR,
-					selectedSkin.primaryG,
-					selectedSkin.primaryB
-			  )
-			: color;
-		navigate(`/loadout?color=${targetHex.replace('#', '')}`);
+		const targetHex = selectedSkin ? selectedSkin.dominantHex : color;
+
+		navigate(`/loadout?color=${targetHex.replace('#', '')}&mode=${searchMode}`);
 	};
 
 	const handleSkinSelect = (skin: Skin) => {
 		setSearchQuery('');
 		setSearchResults([]);
 		setSelectedSkin(skin);
-		const hex = rgbToHex(skin.primaryR, skin.primaryG, skin.primaryB);
-		findSimilar(hex);
+		findSimilarBySkin(skin.id);
 	};
 
 	return (
@@ -101,11 +123,32 @@ function HomePage() {
 							{isLoading && !selectedSkin ? 'Searching...' : 'Find by Color'}
 						</Button>
 					</div>
+
+					{}
+					<div className='ModeToggle'>
+						<button
+							className={`ModeButton ${
+								searchMode === 'premium' ? 'active' : ''
+							}`}
+							onClick={() => setSearchMode('premium')}
+						>
+							💎 Best Match
+						</button>
+						<button
+							className={`ModeButton ${
+								searchMode === 'budget' ? 'active' : ''
+							}`}
+							onClick={() => setSearchMode('budget')}
+						>
+							💰 Budget-Friendly
+						</button>
+					</div>
 				</div>
 
 				<span className='Divider'>OR</span>
 
 				<div className='SearchBox'>
+					{}
 					<label htmlFor='search-input' className='SearchLabel'>
 						Find skins by item name:
 					</label>
@@ -147,6 +190,7 @@ function HomePage() {
 			</div>
 
 			<main>
+				{}
 				{selectedSkin && (
 					<div className='SelectedSkinArea'>
 						<h3>Base Skin:</h3>

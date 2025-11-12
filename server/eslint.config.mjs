@@ -6,10 +6,10 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ['dist/', 'node_modules/'],
   },
+
   eslint.configs.recommended,
-  ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
   {
     languageOptions: {
@@ -17,19 +17,35 @@ export default tseslint.config(
         ...globals.node,
         ...globals.jest,
       },
-      sourceType: 'commonjs',
+    },
+    rules: {
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
+    },
+  },
+
+  {
+    files: ['src/**/*.ts', 'prisma/**/*.ts'],
+    extends: [...tseslint.configs.recommendedTypeChecked],
+    languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
-  },
-  {
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
+
+  {
+    files: ['eslint.config.mjs', 'prisma.config.ts', 'jest.config.ts'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
     },
   },
 );

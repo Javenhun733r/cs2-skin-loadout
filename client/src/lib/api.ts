@@ -10,20 +10,41 @@ async function handleResponse<T>(response: Response): Promise<T> {
 	return response.json() as Promise<T>;
 }
 
-export async function findSimilarSkins(
+export async function findSimilarSkinsByColor(
 	color: string,
-	limit: number = 20
+	limit: number = 20,
+	mode: 'premium' | 'budget' = 'premium'
 ): Promise<SkinWithDistance[]> {
 	const hex = color.replace('#', '');
-	const params = new URLSearchParams({ color: hex, limit: String(limit) });
-
-	const response = await fetch(`${API_URL}/skins/similar-to?${params}`);
+	const params = new URLSearchParams({
+		color: hex,
+		limit: String(limit),
+		mode: mode,
+	});
+	const response = await fetch(`${API_URL}/skins/similar-to-color?${params}`);
 	return handleResponse<SkinWithDistance[]>(response);
 }
-
-export async function fetchLoadout(color: string): Promise<SkinWithDistance[]> {
+export async function findSimilarSkinsBySkinId(
+	skinId: string,
+	limit: number = 20,
+	mode: 'premium' | 'budget' = 'premium'
+): Promise<SkinWithDistance[]> {
+	const params = new URLSearchParams({
+		limit: String(limit),
+		mode: mode,
+	});
+	const response = await fetch(
+		`${API_URL}/skins/similar-to-skin/${skinId}?${params}`
+	);
+	return handleResponse<SkinWithDistance[]>(response);
+}
+export async function fetchLoadout(
+	color: string,
+	mode: 'premium' | 'budget' = 'premium'
+): Promise<SkinWithDistance[]> {
 	const hex = color.replace('#', '');
-	const params = new URLSearchParams({ color: hex });
+
+	const params = new URLSearchParams({ color: hex, mode: mode });
 
 	const response = await fetch(`${API_URL}/skins/loadout?${params}`);
 	return handleResponse<SkinWithDistance[]>(response);

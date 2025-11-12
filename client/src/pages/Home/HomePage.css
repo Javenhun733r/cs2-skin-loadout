@@ -13,8 +13,9 @@
 	background: var(--color-surface);
 	padding: 20px;
 	border-radius: var(--radius);
-	box-shadow: 0 2px 4px var(--color-shadow);
-	transition: background-color 0.2s ease, box-shadow 0.2s ease;
+	border: 1px solid var(--color-border);
+	box-shadow: var(--shadow-sm);
+	transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .ColorControls {
@@ -27,7 +28,7 @@
 	width: 60px;
 	height: 40px;
 	border: 1px solid var(--color-border);
-	border-radius: 4px; /* A little smaller radius for this */
+	border-radius: 4px;
 	padding: 0;
 	cursor: pointer;
 }
@@ -39,7 +40,16 @@
 	padding: 0 20px;
 	transition: color 0.2s ease;
 }
+.SearchInput {
+	background-color: var(--color-background);
+	color: var(--color-text-primary);
+	border: 1px solid var(--color-border);
+	transition: border-color 0.2s ease, background-color 0.2s ease;
+}
 
+.SearchInput:focus {
+	border-color: var(--color-primary);
+}
 .SearchContainer {
 	position: relative;
 }
@@ -58,10 +68,11 @@
 	right: 0;
 	background: var(--color-surface);
 	border: 1px solid var(--color-border);
+	border-top: none;
 	max-height: 300px;
 	overflow-y: auto;
 	z-index: 10;
-	box-shadow: 0 4px 6px var(--color-shadow);
+	box-shadow: var(--shadow-md);
 	border-radius: 0 0 var(--radius) var(--radius);
 	margin-top: -1px;
 }
@@ -126,4 +137,33 @@
 .ErrorText {
 	color: var(--color-error-text);
 	text-align: center;
+}
+.ModeToggle {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 2rem;
+	border-radius: var(--radius);
+	overflow: hidden;
+	border: 1px solid var(--color-border);
+}
+
+.ModeButton {
+	flex: 1;
+	padding: 10px;
+	font-size: 14px;
+	font-weight: 600;
+	border: none;
+	background-color: var(--color-surface);
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	transition: all 0.2s ease;
+}
+
+.ModeButton.active {
+	background-color: var(--color-primary);
+	color: var(--color-white);
+}
+
+.ModeButton:not(.active):hover {
+	background-color: var(--color-background);
 }

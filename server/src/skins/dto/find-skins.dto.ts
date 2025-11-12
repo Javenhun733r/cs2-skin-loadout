@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   Min,
 } from 'class-validator';
 
@@ -22,4 +23,19 @@ export class FindSkinsDto {
   @IsInt()
   @Min(1)
   limit: number = 10;
+  @IsOptional()
+  @IsString()
+  mode?: 'premium' | 'budget' = 'premium';
+}
+export class FindSimilarDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 20;
+
+  @IsOptional()
+  @IsString()
+  mode?: 'premium' | 'budget' = 'premium';
 }

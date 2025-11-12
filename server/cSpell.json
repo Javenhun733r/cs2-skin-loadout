@@ -1,0 +1,16 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "culori",
+    "oklch",
+    "karambit",
+    "glock",
+    "smgs",
+    "bizon",
+    "famas",
+    "galil",
+    "negev"
+  ],
+  "ignorePaths": ["node_modules", "dist"]
+}

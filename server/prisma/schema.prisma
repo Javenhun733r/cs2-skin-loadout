@@ -14,21 +14,38 @@ datasource db {
 }
 
 model Skin {
-  id         String  @id
-  name       String
-  image      String
-  weapon     String?
-  rarity     String?
-  type       String
-  primaryR   Int
-  primaryG   Int
-  primaryB   Int
-  secondaryR Int
-  secondaryG Int
-  secondaryB Int
-  accentR    Int
-  accentG    Int
-  accentB    Int
+  id          String  @id
+  name        String
+  image       String
+  weapon      String?
+  rarity      String?
+  type        String
+  dominantHex String  @default("#808080")
+  histRed     Float   @default(0)
+  histOrange  Float   @default(0)
+  histYellow  Float   @default(0)
+  histGreen   Float   @default(0)
+  histCyan    Float   @default(0)
+  histBlue    Float   @default(0)
+  histPurple  Float   @default(0)
+  histPink    Float   @default(0)
+  histBrown   Float   @default(0)
+  histBlack   Float   @default(0)
+  histGray    Float   @default(0)
+  histWhite   Float   @default(0)
 
   @@unique([id])
+  @@index([dominantHex])
+  @@index([histRed])
+  @@index([histOrange])
+  @@index([histYellow])
+  @@index([histGreen])
+  @@index([histCyan])
+  @@index([histBlue])
+  @@index([histPurple])
+  @@index([histPink])
+  @@index([histBrown])
+  @@index([histBlack])
+  @@index([histGray])
+  @@index([histWhite])
 }

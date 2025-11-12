@@ -8,25 +8,32 @@ import * as api from '../../lib/api';
 import type { SkinWithDistance } from '../../types/types';
 import './LoadoutPage.css';
 
-function LoadoutPage() {
+type LoadoutMode = 'premium' | 'budget';
+
+export default function LoadoutPage() {
 	const [loadout, setLoadout] = useState<SkinWithDistance[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const [color, setColor] = useState(searchParams.get('color') || '663399');
+	const [mode, setMode] = useState<LoadoutMode>(
+		(searchParams.get('mode') as LoadoutMode) || 'premium'
+	);
 
 	useEffect(() => {
 		if (!color) {
 			setError('No color specified.');
 			return;
 		}
-		setSearchParams({ color });
+
+		setSearchParams({ color, mode });
+
 		const loadData = async () => {
 			setIsLoading(true);
 			setError(null);
 			try {
-				const data = await api.fetchLoadout(color);
+				const data = await api.fetchLoadout(color, mode);
 				setLoadout(data);
 			} catch (err) {
 				setError((err as Error).message);
@@ -36,23 +43,37 @@ function LoadoutPage() {
 		};
 
 		loadData();
-	}, [color, setSearchParams]);
+	}, [color, mode, setSearchParams]);
+
 	return (
 		<section>
 			<div className='LoadoutHeader'>
 				<Link to='/' className='BackLink'>
 					&larr; Back to Search
 				</Link>
-				<h2>
-					Full Loadout for:{' '}
-					<input
-						type='color'
-						className='ColorPicker'
-						value={`#${color}`}
-						onChange={e => setColor(e.target.value.replace('#', ''))}
-					/>
-					#{color}
-				</h2>
+				<h2>Full Loadout for:</h2>
+				<input
+					type='color'
+					className='ColorPicker'
+					value={`#${color}`}
+					onChange={e => setColor(e.target.value.replace('#', ''))}
+				/>
+			</div>
+
+			{}
+			<div className='ModeToggle'>
+				<button
+					className={`ModeButton ${mode === 'premium' ? 'active' : ''}`}
+					onClick={() => setMode('premium')}
+				>
+					💎 Best Match
+				</button>
+				<button
+					className={`ModeButton ${mode === 'budget' ? 'active' : ''}`}
+					onClick={() => setMode('budget')}
+				>
+					💰 Budget-Friendly
+				</button>
 			</div>
 
 			<main>
@@ -60,7 +81,9 @@ function LoadoutPage() {
 				{error && <Alert type='error'>{error}</Alert>}
 
 				{!isLoading && !error && loadout.length === 0 && (
-					<Alert type='info'>No weapon skins found for this color.</Alert>
+					<Alert type='info'>
+						No weapon skins found for this color combination.
+					</Alert>
 				)}
 
 				{!isLoading && loadout.length > 0 && (
@@ -74,5 +97,3 @@ function LoadoutPage() {
 		</section>
 	);
 }
-
-export default LoadoutPage;

@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
+import { PricingModule } from 'src/pricing/pricing.module';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { SkinsController } from './skins.controller';
+import { SkinsRepository } from './skins.repository';
 import { SkinsService } from './skins.service';
-import { PricingModule } from 'src/pricing/pricing.module';
 @Module({
   imports: [PrismaModule, PricingModule],
   controllers: [SkinsController],
-  providers: [SkinsService],
+  providers: [SkinsService, SkinsRepository],
 })
 export class SkinsModule {}

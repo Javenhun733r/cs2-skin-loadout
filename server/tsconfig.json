@@ -1,4 +1,5 @@
 {
+  "include": ["src/**/*", "prisma/**/*.ts"],
   "compilerOptions": {
     "typeRoots": ["./types", "./node_modules/@types"],
     "module": "nodenext",
