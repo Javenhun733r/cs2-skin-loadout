@@ -1,6 +1,6 @@
 import type { Skin, SkinWithDistance } from '../types/types';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'http://localhost:3000/api';
 
 async function handleResponse<T>(response: Response): Promise<T> {
 	if (!response.ok) {
@@ -21,9 +21,11 @@ export async function findSimilarSkinsByColor(
 		limit: String(limit),
 		mode: mode,
 	});
+
 	const response = await fetch(`${API_URL}/skins/similar-to-color?${params}`);
 	return handleResponse<SkinWithDistance[]>(response);
 }
+
 export async function findSimilarSkinsBySkinId(
 	skinId: string,
 	limit: number = 20,
@@ -38,6 +40,7 @@ export async function findSimilarSkinsBySkinId(
 	);
 	return handleResponse<SkinWithDistance[]>(response);
 }
+
 export async function fetchLoadout(
 	color: string,
 	mode: 'premium' | 'budget' = 'premium'

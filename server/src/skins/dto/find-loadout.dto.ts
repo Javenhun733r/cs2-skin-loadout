@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+} from 'class-validator';
 
 export class FindLoadoutDto {
   @IsString()
@@ -11,4 +18,13 @@ export class FindLoadoutDto {
   @IsOptional()
   @IsString()
   mode?: 'premium' | 'budget' = 'premium';
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  threshold?: number;
 }

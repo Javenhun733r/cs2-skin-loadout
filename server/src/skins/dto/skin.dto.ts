@@ -1,18 +1,7 @@
-export type ColorBin =
-  | 'histRed'
-  | 'histOrange'
-  | 'histYellow'
-  | 'histGreen'
-  | 'histCyan'
-  | 'histBlue'
-  | 'histPurple'
-  | 'histPink'
-  | 'histBrown'
-  | 'histBlack'
-  | 'histGray'
-  | 'histWhite';
+export type ColorBin = string; // Тепер будь-який ключ типу 'hist*'
 
 export type Histogram = Record<ColorBin, number>;
+
 export class SkinDto {
   id: string;
   name: string;
@@ -20,19 +9,12 @@ export class SkinDto {
   weapon: string | null;
   rarity: string | null;
   type: string;
-  histRed: number;
   dominantHex: string;
-  histOrange: number;
-  histYellow: number;
-  histGreen: number;
-  histCyan: number;
-  histBlue: number;
-  histPurple: number;
-  histPink: number;
-  histBrown: number;
-  histBlack: number;
-  histGray: number;
-  histWhite: number;
+
+  histogram?: string; // JSON рядок з вектором
+
+  // Автоматично динамічні поля hist*, які будуть заповнені parseHistogram
+  [key: string]: any;
 }
 
 export class SkinWithDistanceDto extends SkinDto {
@@ -47,9 +29,9 @@ export class SkinResponseDto extends SkinDto {
 export class FindByHistogramRepoDto {
   targetVector: Histogram;
   limit: number;
-  primaryBins: ColorBin[];
 }
+
 export class FindLoadoutRepoDto {
   targetVector: Histogram;
-  primaryBins: ColorBin[];
+  threshold?: number;
 }

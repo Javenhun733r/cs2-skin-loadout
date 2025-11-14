@@ -2,15 +2,23 @@
   "version": "0.2",
   "language": "en",
   "words": [
-    "culori",
-    "oklch",
-    "karambit",
-    "glock",
-    "smgs",
     "bizon",
+    "culori",
     "famas",
     "galil",
-    "negev"
+    "glock",
+    "ILIKE",
+    "karambit",
+    "lanczos",
+    "loadouts",
+    "navaja",
+    "negev",
+    "oklch",
+    "smgs",
+    "ursus"
   ],
-  "ignorePaths": ["node_modules", "dist"]
+  "ignorePaths": [
+    "node_modules",
+    "dist"
+  ]
 }
