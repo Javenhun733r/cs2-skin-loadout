@@ -152,7 +152,8 @@ export class SkinsRepository {
       this.prisma.$queryRaw(
         Prisma.sql`
           SELECT id, name, image, weapon, rarity, type, "dominantHex",
-                 (histogram <#> ${vectorString}::vector) AS distance
+                 histogram::text, 
+                 (histogram <=> ${vectorString}::vector) AS distance
           FROM "Skin"
           ORDER BY distance ASC
           LIMIT ${limit};
@@ -165,7 +166,7 @@ export class SkinsRepository {
     dto: FindLoadoutRepoDto,
   ): Promise<SkinWithDistanceDto[]> {
     const { targetVector } = dto;
-    const threshold = 0.5;
+    const threshold = dto.threshold || 0.5;
 
     const values = Object.values(targetVector);
     const sum = values.reduce((a, b) => a + b, 0) || 1;
@@ -181,7 +182,8 @@ export class SkinsRepository {
               (
                 SELECT DISTINCT ON ("weapon")
                   id, name, image, weapon, rarity, type, "dominantHex",
-                  (histogram <#> ${vectorString}::vector) AS distance
+                  histogram::text, 
+                  (histogram <=> ${vectorString}::vector) AS distance
                 FROM "Skin"
                 WHERE "type" = 'weapon'
                   AND "weapon" IS NOT NULL AND "weapon" != ''
@@ -191,7 +193,8 @@ export class SkinsRepository {
               (
                 SELECT DISTINCT ON ("weapon")
                   id, name, image, weapon, rarity, type, "dominantHex",
-                  (histogram <#> ${vectorString}::vector) AS distance
+                  histogram::text, 
+                  (histogram <=> ${vectorString}::vector) AS distance
                 FROM "Skin"
                 WHERE "type" IN ('knife', 'glove')
                   AND "weapon" IS NOT NULL AND "weapon" != ''

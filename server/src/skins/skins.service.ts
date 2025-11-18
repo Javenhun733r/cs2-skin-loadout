@@ -2,7 +2,12 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PricingService } from '../pricing/pricing.service';
 
-import { BIN_NAMES, classifyColor, hexToRgb } from '../utils/color.utils';
+import {
+  BIN_NAMES,
+  classifyColor,
+  hexToRgb,
+  safeOklch,
+} from '../utils/color.utils';
 import { FindLoadoutDto } from './dto/find-loadout.dto';
 import { FindSimilarDto, FindSkinsDto } from './dto/find-skins.dto';
 import {
@@ -14,7 +19,9 @@ import {
 import { SkinsRepository } from './skins.repository';
 
 const TOTAL_BINS = 64;
-
+const LIGHTNESS_BLACK = 0.1;
+const LIGHTNESS_WHITE = 0.95;
+const CHROMA_GRAY = 0.05;
 @Injectable()
 export class SkinsService {
   constructor(
@@ -105,8 +112,8 @@ export class SkinsService {
     return skinsWithPrices.filter((s) => s.id !== skinId);
   }
 
-  async findSkinsByColor(dto: FindSkinsDto): Promise<SkinResponseDto[]> {
-    const { targetVector } = this.createTargetVector(dto.color);
+  async findSkinsByColors(dto: FindSkinsDto): Promise<SkinResponseDto[]> {
+    const { targetVector } = this.createTargetVectorFromColors(dto.colors);
     const sanitizedVector = this.sanitizeVector(targetVector);
 
     const skinsFromRepo = await this.skinsRepository.findByHistogram({
@@ -132,13 +139,12 @@ export class SkinsService {
   }
 
   async findLoadoutByColor(dto: FindLoadoutDto): Promise<SkinResponseDto[]> {
-    const { targetVector } = this.createTargetVector(dto.color);
+    const { targetVector } = this.createTargetVectorFromColor(dto.color);
     const sanitizedVector = this.sanitizeVector(targetVector);
 
     const skinsFromRepo =
       await this.skinsRepository.findAllLoadoutOptionsByColor({
         targetVector: sanitizedVector,
-
         threshold: dto.threshold,
       });
 
@@ -148,12 +154,11 @@ export class SkinsService {
     }));
   }
 
-  private createTargetVector(hex: string): {
+  private createTargetVectorFromColor(hex: string): {
     targetVector: Histogram;
     primaryBins: ColorBin[];
   } {
     const vector: Histogram = {} as Histogram;
-
     for (let i = 0; i < TOTAL_BINS; i++) vector[`hist${i}`] = 0;
 
     const rgb = hexToRgb(hex);
@@ -161,21 +166,81 @@ export class SkinsService {
       return { targetVector: vector, primaryBins: [] };
     }
 
-    const binName = classifyColor(rgb.r / 255, rgb.g / 255, rgb.b / 255, 255);
+    const oklchColor = safeOklch(rgb.r / 255, rgb.g / 255, rgb.b / 255);
 
-    if (!binName) {
-      return { targetVector: vector, primaryBins: [] };
+    if (
+      !oklchColor ||
+      oklchColor.l < LIGHTNESS_BLACK ||
+      oklchColor.l > LIGHTNESS_WHITE ||
+      oklchColor.c < CHROMA_GRAY
+    ) {
+      const binName = classifyColor(rgb.r / 255, rgb.g / 255, rgb.b / 255, 255);
+      if (!binName) {
+        return { targetVector: vector, primaryBins: [] };
+      }
+      const binIndex = BIN_NAMES.indexOf(binName);
+      if (binIndex === -1) {
+        return { targetVector: vector, primaryBins: [] };
+      }
+      const key = `hist${binIndex}`;
+      vector[key] = 1;
+      return { targetVector: vector, primaryBins: [key] };
     }
 
-    const binIndex = BIN_NAMES.indexOf(binName);
+    const hue = (oklchColor.h ?? 0) % 360;
 
-    if (binIndex === -1) {
-      return { targetVector: vector, primaryBins: [] };
+    const binWidth = 360 / TOTAL_BINS;
+    const exactBinPosition = isFinite(hue) ? hue / binWidth : 0;
+
+    const bin1_index = Math.floor(exactBinPosition) % TOTAL_BINS;
+    const bin2_index = (bin1_index + 1) % TOTAL_BINS;
+
+    const bin2_weight = exactBinPosition - bin1_index;
+    const bin1_weight = 1.0 - bin2_weight;
+
+    const key1 = `hist${bin1_index}`;
+    const key2 = `hist${bin2_index}`;
+
+    vector[key1] = bin1_weight;
+    vector[key2] = bin2_weight;
+
+    const primaryBins = bin1_weight > bin2_weight ? [key1] : [key2];
+
+    return { targetVector: vector, primaryBins };
+  }
+  private createTargetVectorFromColors(hexColors: string[]): {
+    targetVector: Histogram;
+    primaryBins: ColorBin[];
+  } {
+    const vector: Histogram = {} as Histogram;
+    for (let i = 0; i < TOTAL_BINS; i++) vector[`hist${i}`] = 0;
+
+    let totalWeight = 0;
+    const primaryBins = new Set<ColorBin>();
+
+    for (const hex of hexColors) {
+      const { targetVector: singleColorVector, primaryBins: singlePrimary } =
+        this.createTargetVectorFromColor(hex);
+
+      for (let i = 0; i < TOTAL_BINS; i++) {
+        const key = `hist${i}`;
+        const weight = singleColorVector[key];
+        if (weight > 0) {
+          vector[key] = (vector[key] || 0) + weight;
+        }
+      }
+
+      totalWeight += 1.0;
+      singlePrimary.forEach((bin) => primaryBins.add(bin));
     }
 
-    const key = `hist${binIndex}`;
-    vector[key] = 1;
+    if (totalWeight > 0) {
+      for (let i = 0; i < TOTAL_BINS; i++) {
+        const key = `hist${i}`;
+        vector[key] = (vector[key] || 0) / totalWeight;
+      }
+    }
 
-    return { targetVector: vector, primaryBins: [key] };
+    return { targetVector: vector, primaryBins: Array.from(primaryBins) };
   }
 }

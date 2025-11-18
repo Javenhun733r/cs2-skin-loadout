@@ -2,10 +2,10 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import { oklch, parse } from 'culori';
-import getColors from 'get-image-colors';
+import * as KMeans from 'ml-kmeans';
+
 import pLimit from 'p-limit';
 import sharp from 'sharp';
-
 const SKINS_JSON_URL =
   'https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json';
 
@@ -14,17 +14,19 @@ const DB_BATCH_SIZE = 500;
 const CONCURRENT_DOWNLOADS = 10;
 const TOTAL_BINS = 64;
 
-// Improved configuration
 const CONFIG = {
   IMAGE_RESIZE: { width: 128, height: 128 },
   ALPHA_THRESHOLD: 230,
   ACHROMATIC_THRESHOLD: 0.7,
-  LIGHTNESS_BLACK: 0.1,
-  LIGHTNESS_WHITE: 0.95,
-  CHROMA_GRAY: 0.05,
+  LIGHTNESS_BLACK: 0.2,
+  LIGHTNESS_WHITE: 0.98,
+  CHROMA_GRAY: 0.03,
   REQUEST_TIMEOUT: 15000,
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,
+
+  BRIGHTNESS_BOOST: 1.2,
+  SATURATION_BOOST: 1.1,
 } as const;
 
 interface RawSkinData {
@@ -39,34 +41,42 @@ interface HexColor {
   hex: () => string;
 }
 
-type ColorBin =
-  | 'Red'
-  | 'Orange'
-  | 'Yellow'
-  | 'YellowGreen'
-  | 'Green'
-  | 'CyanGreen'
-  | 'Cyan'
-  | 'CyanBlue'
-  | 'Blue'
-  | 'Indigo'
-  | 'Purple'
-  | 'Magenta'
-  | 'Pink'
-  | 'RedPink'
-  | 'RedDark'
-  | 'Brown1'
-  | 'Brown2'
-  | 'GrayDark'
-  | 'Gray'
-  | 'GrayLight'
-  | 'Black'
-  | 'White'
-  | 'Other1'
-  | 'Other2'
-  | `Other${string}`;
+const HUE_BINS = 12;
+const HUE_BIN_WIDTH = 360 / HUE_BINS;
 
+const CHROMATIC_BIN_NAMES = [
+  'Red',
+  'Orange',
+  'Yellow',
+  'YellowGreen',
+  'Green',
+  'CyanGreen',
+  'Cyan',
+  'CyanBlue',
+  'Blue',
+  'Indigo',
+  'Purple',
+  'Magenta',
+];
+
+const PRIMARY_BIN_NAMES = [
+  ...CHROMATIC_BIN_NAMES,
+  'Brown',
+  'Black',
+  'Gray',
+  'White',
+] as const;
+
+type ColorBin = (typeof PRIMARY_BIN_NAMES)[number] | `Other${number}`;
 type Histogram = Record<ColorBin, number>;
+
+const BIN_NAMES: ColorBin[] = [
+  ...PRIMARY_BIN_NAMES,
+  ...Array.from(
+    { length: TOTAL_BINS - PRIMARY_BIN_NAMES.length },
+    (_, i) => `Other${i + 1}` as ColorBin,
+  ),
+];
 
 interface SkinDataForRawInsert {
   id: string;
@@ -84,37 +94,6 @@ interface OklchColor {
   c: number;
   h: number;
 }
-
-const BIN_NAMES: ColorBin[] = [
-  'Red',
-  'RedPink',
-  'Pink',
-  'Magenta',
-  'Purple',
-  'Indigo',
-  'Blue',
-  'CyanBlue',
-  'Cyan',
-  'CyanGreen',
-  'Green',
-  'YellowGreen',
-  'Yellow',
-  'Orange',
-  'RedDark',
-  'Brown1',
-  'Brown2',
-  'GrayDark',
-  'Gray',
-  'GrayLight',
-  'Black',
-  'White',
-  'Other1',
-  'Other2',
-  ...Array.from(
-    { length: TOTAL_BINS - 24 },
-    (_, i) => `Other${i + 3}` as ColorBin,
-  ),
-];
 
 function isColor(c: unknown): c is HexColor {
   return (
@@ -137,7 +116,6 @@ function logError(err: unknown, context?: string): void {
   else console.error(message);
 }
 
-// Type-safe color conversion
 function safeOklch(r: number, g: number, b: number): OklchColor | null {
   try {
     const result = (
@@ -162,8 +140,11 @@ function safeOklch(r: number, g: number, b: number): OklchColor | null {
 
     if (
       typeof l !== 'number' ||
+      isNaN(l) ||
       typeof c !== 'number' ||
-      typeof h !== 'number'
+      isNaN(c) ||
+      typeof h !== 'number' ||
+      isNaN(h)
     ) {
       return null;
     }
@@ -174,170 +155,202 @@ function safeOklch(r: number, g: number, b: number): OklchColor | null {
   }
 }
 
-// Improved boring color detection with better thresholds
 function isBoringColor(hex: string): boolean {
   try {
-    const parsed = (
-      parse as (color: string) => Record<string, unknown> | null | undefined
-    )(hex);
-    if (!parsed) return true;
+    const p = parse(hex);
+    if (!p) return true;
 
-    const color = (
-      oklch as (
-        color: Record<string, unknown>,
-      ) => Record<string, unknown> | undefined
-    )(parsed);
-    if (!color || typeof color !== 'object') return true;
+    const col = oklch(p);
+    if (!col) return true;
 
-    const l = color.l;
-    const c = color.c;
+    const l = col.l;
+    const c = col.c;
 
-    if (typeof l !== 'number' || typeof c !== 'number') return true;
+    if (l < 0.1 || l > 0.98) return true;
 
-    // More nuanced boring color detection
-    if (l < 0.15 || l > 0.95) return true;
-    if (c < 0.05) return true;
-
-    // Additional check: middle gray range
-    if (l > 0.4 && l < 0.6 && c < 0.08) return true;
+    if (c < 0.03) return true;
 
     return false;
   } catch {
     return true;
   }
 }
+function rgbToHsv(r: number, g: number, b: number) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
 
-// Improved color classification with better binning
+  let h = 0;
+  if (d !== 0) {
+    switch (max) {
+      case r:
+        h = ((g - b) / d) % 6;
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
+    }
+  }
+
+  h = Math.round(h * 60);
+  if (h < 0) h += 360;
+
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+
+  return { h, s, v };
+}
+
 function classifyColor(
   r: number,
   g: number,
   b: number,
   a: number,
 ): ColorBin | null {
-  if (a < CONFIG.ALPHA_THRESHOLD) return null;
+  if (a < 30) return null;
 
-  const color = safeOklch(r, g, b);
-  if (!color) return 'Black';
+  const o = safeOklch(r, g, b);
+  if (!o) return 'Gray';
 
-  const { l, c, h } = color;
+  const { l, c } = o;
 
-  // Handle achromatic colors first
-  if (l < CONFIG.LIGHTNESS_BLACK) return 'Black';
-  if (l > CONFIG.LIGHTNESS_WHITE) return 'White';
+  if (l < 0.12) return 'Black';
+  if (l > 0.97) return 'White';
+  if (c < 0.025) return 'Gray';
 
-  // Gray scale detection with better granularity
-  if (c < CONFIG.CHROMA_GRAY) {
-    if (l < 0.3) return 'GrayDark';
-    if (l < 0.7) return 'Gray';
-    return 'GrayLight';
+  const { h } = rgbToHsv(r, g, b);
+
+  if (h >= 20 && h <= 75 && l < 0.55 && c < 0.1) {
+    return 'Brown';
   }
 
-  // Chromatic color binning with better hue handling
-  const hueSector = Math.floor((h % 360) / (360 / TOTAL_BINS)) % TOTAL_BINS;
-  return BIN_NAMES[hueSector] || 'Red';
+  const hueIndex = Math.floor(h / HUE_BIN_WIDTH) % HUE_BINS;
+  return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
+}
+async function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Retry logic for network requests
-async function fetchWithRetry(
-  url: string,
-  attempts: number = CONFIG.RETRY_ATTEMPTS,
-): Promise<Buffer> {
-  let lastError: unknown;
+async function fetchWithRetry(url: string): Promise<Buffer> {
+  let lastErr: unknown = null;
 
-  for (let i = 0; i < attempts; i++) {
+  for (let attempt = 1; attempt <= CONFIG.RETRY_ATTEMPTS; attempt++) {
     try {
-      const response = await axios.get<ArrayBuffer>(url, {
+      const response = await axios.get(url, {
         responseType: 'arraybuffer',
         timeout: CONFIG.REQUEST_TIMEOUT,
+        validateStatus: (code) => code >= 200 && code < 300,
       });
+
       return Buffer.from(response.data);
     } catch (err) {
-      lastError = err;
-      if (i < attempts - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, CONFIG.RETRY_DELAY * (i + 1)),
-        );
-      }
+      lastErr = err;
+      console.warn(
+        `Fetch failed (attempt ${attempt}/${CONFIG.RETRY_ATTEMPTS}) for ${url}. Retrying in ${CONFIG.RETRY_DELAY}ms...`,
+      );
+      await wait(CONFIG.RETRY_DELAY);
     }
   }
 
-  throw lastError;
+  console.error(`fetchWithRetry FAILED for ${url}`);
+  throw lastErr ?? new Error('Unknown fetch error');
 }
-
-// Improved color extraction with better dominant color selection
+function rgbToHex(r: number, g: number, b: number) {
+  const toHex = (x: number) => {
+    const h = Math.round(x).toString(16);
+    return h.length === 1 ? '0' + h : h;
+  };
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
 async function extractColorData(
   imageUrl: string,
 ): Promise<{ histogram: Histogram; dominantHex: string }> {
   const histogram: Histogram = Object.fromEntries(
     BIN_NAMES.map((k) => [k, 0]),
   ) as Histogram;
-
   let dominantHex = '#808080';
 
   try {
     const buffer = await fetchWithRetry(imageUrl);
-    const metadata = await sharp(buffer).metadata();
-    const format = metadata.format || 'webp';
 
-    // Extract dominant colors
-    const colors = (await getColors(buffer, {
-      type: `image/${format}`,
-      count: 15,
-    })) as unknown[];
-
-    const allHexColors: string[] = colors.filter(isColor).map((c) => c.hex());
-
-    if (allHexColors.length > 0) {
-      const interestingColors = allHexColors.filter((h) => !isBoringColor(h));
-      const boringCount = allHexColors.length - interestingColors.length;
-      const isAchromatic =
-        boringCount / allHexColors.length > CONFIG.ACHROMATIC_THRESHOLD;
-
-      // Better dominant color selection
-      if (isAchromatic) {
-        dominantHex = allHexColors[0];
-      } else {
-        dominantHex = interestingColors[0] || allHexColors[0];
-      }
-    }
-
-    // Process pixel histogram with improved resolution
     const { data } = await sharp(buffer)
       .ensureAlpha()
       .resize(CONFIG.IMAGE_RESIZE.width, CONFIG.IMAGE_RESIZE.height, {
         fit: 'inside',
         kernel: 'lanczos3',
       })
+      .modulate({
+        brightness: CONFIG.BRIGHTNESS_BOOST,
+        saturation: CONFIG.SATURATION_BOOST,
+      })
       .raw()
       .toBuffer({ resolveWithObject: true });
 
+    const pixels: number[][] = [];
     let actualPixels = 0;
 
-    // Process pixels in a more efficient way
     for (let i = 0; i < data.length; i += 4) {
-      const a = data[i + 3];
-      if (a < CONFIG.ALPHA_THRESHOLD) continue;
-
       const r = data[i] / 255;
       const g = data[i + 1] / 255;
       const b = data[i + 2] / 255;
+      const a = data[i + 3];
+
+      if (a < CONFIG.ALPHA_THRESHOLD) continue;
 
       const bin = classifyColor(r, g, b, a);
-      if (bin) {
-        histogram[bin]++;
-        actualPixels++;
-      }
+      if (bin) histogram[bin]++;
+      actualPixels++;
+      const hex = rgbToHex(r * 255, g * 255, b * 255);
+      if (!isBoringColor(hex)) pixels.push([r * 255, g * 255, b * 255]);
     }
 
-    // Normalize histogram
     if (actualPixels > 0) {
       BIN_NAMES.forEach((k) => {
         histogram[k] = histogram[k] / actualPixels;
       });
     }
 
+    if (pixels.length > 0) {
+      let dominantHexCandidate = '#808080';
+      try {
+        const k = Math.min(4, pixels.length);
+        const kmeansResult = KMeans.kmeans(pixels, k, {
+          initialization: 'kmeans++',
+        });
+
+        if (
+          kmeansResult &&
+          Array.isArray(kmeansResult.centroids) &&
+          Array.isArray(kmeansResult.clusters) &&
+          kmeansResult.centroids.length > 0
+        ) {
+          const centroids = kmeansResult.centroids as number[][];
+
+          const counts = new Array(centroids.length).fill(0);
+          kmeansResult.clusters.forEach((label) => {
+            if (label >= 0 && label < counts.length) counts[label]++;
+          });
+
+          const domIndex = counts.indexOf(Math.max(...counts));
+          if (centroids[domIndex]) {
+            const [dr, dg, db] = centroids[domIndex].map((v) =>
+              Math.max(0, Math.min(255, v)),
+            );
+            dominantHexCandidate = rgbToHex(dr, dg, db);
+          }
+        }
+      } catch (err) {
+        logError(err, `KMeans failed for ${imageUrl}, fallback to gray`);
+      }
+
+      dominantHex = dominantHexCandidate;
+    }
+
     return { histogram, dominantHex };
-  } catch (err: unknown) {
+  } catch (err) {
     logError(err, `Error extracting data for ${imageUrl}`);
     return { histogram, dominantHex };
   }
@@ -376,54 +389,26 @@ function determineSkinType(
   return 'weapon';
 }
 
-// Improved histogram to vector conversion with dominant color boost
-function histogramToVector(
-  histogram: Histogram,
-  dominantHex?: string,
-): number[] {
+function histogramToVector(histogram: Histogram): number[] {
   const vector = Array(TOTAL_BINS).fill(0);
 
-  // Fill base histogram
   BIN_NAMES.forEach((bin, idx) => {
     vector[idx] = histogram[bin] || 0;
   });
 
-  // Boost dominant color bin for better matching
-  if (dominantHex) {
-    try {
-      const domColor = (
-        parse as (color: string) => Record<string, unknown> | null | undefined
-      )(dominantHex);
-      if (domColor) {
-        const domOklch = (
-          oklch as (
-            color: Record<string, unknown>,
-          ) => Record<string, unknown> | undefined
-        )(domColor);
-        if (domOklch && typeof domOklch === 'object') {
-          const h = domOklch.h;
-          if (typeof h === 'number') {
-            const sector =
-              Math.floor((h % 360) / (360 / TOTAL_BINS)) % TOTAL_BINS;
-            vector[sector] = Math.min(1, vector[sector] + 0.15);
-          }
-        }
-      }
-    } catch {
-      // Silently fail if dominant color parsing fails
-    }
-  }
-
-  // Normalize vector
   const sum = vector.reduce((a, b) => a + b, 0) || 1;
   return vector.map((v) => v / sum);
 }
 
-function createVectorString(
-  histogram: Histogram,
-  dominantHex?: string,
-): string {
-  const vector = histogramToVector(histogram, dominantHex);
+function createVectorString(histogram: Histogram): string {
+  const vector = histogramToVector(histogram);
+
+  if (vector.length !== TOTAL_BINS) {
+    throw new Error(
+      `Vector must have exactly ${TOTAL_BINS} dimensions, got ${vector.length}`,
+    );
+  }
+
   return `[${vector.join(',')}]`;
 }
 
@@ -431,7 +416,7 @@ async function processSkin(skin: RawSkinData): Promise<SkinDataForRawInsert> {
   const { histogram, dominantHex } = await extractColorData(skin.image);
   const weaponName = skin.weapon?.name ?? '';
   const rarityName = skin.rarity?.name ?? '';
-  const histogramVector = createVectorString(histogram, dominantHex);
+  const histogramVector = createVectorString(histogram);
 
   return {
     id: skin.id,
@@ -456,6 +441,9 @@ async function main(): Promise<void> {
     }
 
     console.log('Database empty. Starting seeding...');
+    console.log(
+      `Using brightness boost: ${CONFIG.BRIGHTNESS_BOOST}x, saturation boost: ${CONFIG.SATURATION_BOOST}x`,
+    );
 
     const response = await axios.get<RawSkinData[]>(SKINS_JSON_URL, {
       timeout: 30000,
@@ -471,7 +459,6 @@ async function main(): Promise<void> {
     const limit = pLimit(CONCURRENT_DOWNLOADS);
     let processed = 0;
 
-    // Process with progress tracking
     const allSkinsData = await Promise.all(
       rawSkins.map((skin) =>
         limit(async () => {
@@ -489,7 +476,6 @@ async function main(): Promise<void> {
 
     console.log('All images processed. Starting database write...');
 
-    // Batch insert with better error handling
     for (let i = 0; i < allSkinsData.length; i += DB_BATCH_SIZE) {
       const batch = allSkinsData.slice(i, i + DB_BATCH_SIZE);
 

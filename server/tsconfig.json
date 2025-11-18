@@ -1,10 +1,9 @@
 {
   "include": ["src/**/*", "prisma/**/*.ts"],
   "compilerOptions": {
-    "typeRoots": ["./types", "./node_modules/@types"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "resolvePackageJsonExports": true,
+
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,

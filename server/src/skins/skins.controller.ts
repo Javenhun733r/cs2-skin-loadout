@@ -14,11 +14,11 @@ import { SkinsService } from './skins.service';
 export class SkinsController {
   constructor(private readonly skinsService: SkinsService) {}
 
-  @Get('similar-to-color')
+  @Get('similar-by-colors')
   async findSimilarSkins(
     @Query() query: FindSkinsDto,
   ): Promise<SkinResponseDto[]> {
-    const skins = await this.skinsService.findSkinsByColor(query);
+    const skins = await this.skinsService.findSkinsByColors(query);
     return skins;
   }
 

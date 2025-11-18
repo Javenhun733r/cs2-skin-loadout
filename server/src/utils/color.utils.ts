@@ -1,63 +1,59 @@
 /* eslint-disable */
-import { oklch, type Oklch } from 'culori';
+import { oklch } from 'culori';
 
 export const TOTAL_BINS = 64;
 
-export const BIN_NAMES = [
-  'Red',
-  'RedPink',
-  'Pink',
-  'Magenta',
-  'Purple',
-  'Indigo',
-  'Blue',
-  'CyanBlue',
-  'Cyan',
-  'CyanGreen',
-  'Green',
-  'YellowGreen',
-  'Yellow',
-  'Orange',
-  'RedDark',
-  'Brown1',
-  'Brown2',
-  'GrayDark',
-  'Gray',
-  'GrayLight',
-  'Black',
-  'White',
-  'Other1',
-  'Other2',
+const HUE_BINS = 12;
+const HUE_BIN_WIDTH = 360 / HUE_BINS;
 
-  ...Array.from({ length: TOTAL_BINS - 24 }, (_, i) => `Other${i + 3}`),
+export const CHROMATIC_BIN_NAMES = [
+  'Red',
+  'Orange',
+  'Yellow',
+  'YellowGreen',
+  'Green',
+  'CyanGreen',
+  'Cyan',
+  'CyanBlue',
+  'Blue',
+  'Indigo',
+  'Purple',
+  'Magenta',
+];
+
+export const PRIMARY_BIN_NAMES = [
+  ...CHROMATIC_BIN_NAMES,
+  'Brown',
+  'Black',
+  'Gray',
+  'White',
 ] as const;
 
-export type ColorBin = (typeof BIN_NAMES)[number];
+export type ColorBin = (typeof PRIMARY_BIN_NAMES)[number] | `Other${number}`;
 
-function safeOklch(
+export const BIN_NAMES: ColorBin[] = [
+  ...PRIMARY_BIN_NAMES,
+  ...Array.from(
+    { length: TOTAL_BINS - PRIMARY_BIN_NAMES.length },
+    (_, i) => `Other${i + 1}` as ColorBin,
+  ),
+];
+
+const LIGHTNESS_BLACK = 0.12;
+const LIGHTNESS_WHITE = 0.97;
+const CHROMA_GRAY = 0.025;
+
+export function safeOklch(
   r: number,
   g: number,
   b: number,
 ): { l: number; c: number; h: number } | null {
   try {
-    const result: Oklch | undefined = oklch({ mode: 'rgb', r, g, b });
-
-    if (!result) return null;
-
-    const l = result.l,
-      c = result.c,
-      h = result.h || 0;
-
-    if (
-      typeof l !== 'number' ||
-      isNaN(l) ||
-      typeof c !== 'number' ||
-      isNaN(c) ||
-      typeof h !== 'number' ||
-      isNaN(h)
-    ) {
+    const cResult = oklch({ mode: 'rgb', r, g, b });
+    if (!cResult) return null;
+    const { l, c, h } = cResult;
+    if (![l, c, h].every((v) => typeof v === 'number' && isFinite(v)))
       return null;
-    }
     return { l, c, h };
   } catch {
     return null;
@@ -70,38 +66,48 @@ export function classifyColor(
   b: number,
   a: number,
 ): ColorBin | null {
-  if (a < 230) return null;
+  if (a < 30) return null;
 
-  const color = safeOklch(r, g, b);
-  if (!color) return 'Black';
+  const col = safeOklch(r, g, b);
+  if (!col) return 'Gray';
 
-  const { l, c, h } = color;
+  const { l, c } = col;
+  if (l < LIGHTNESS_BLACK) return 'Black';
+  if (l > LIGHTNESS_WHITE) return 'White';
+  if (c < CHROMA_GRAY) return 'Gray';
 
-  if (l < 0.1) return 'Black';
-  if (l > 0.95) return 'White';
+  const hue = (col.h || 0) % 360;
+  if (hue >= 20 && hue <= 75 && l < 0.55 && c < 0.1) return 'Brown';
 
-  if (c < 0.05) {
-    if (l < 0.3) return 'GrayDark';
-    if (l > 0.8) return 'GrayLight';
-    return 'Gray';
-  }
-
-  const hueSector = Math.floor(h / (360 / TOTAL_BINS)) % TOTAL_BINS;
-
-  return BIN_NAMES[hueSector] || BIN_NAMES[0];
+  const hueIndex = Math.floor(hue / HUE_BIN_WIDTH) % HUE_BINS;
+  return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
 }
 
 export function hexToRgb(
   hex: string,
 ): { r: number; g: number; b: number } | null {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
-    hex.replace('#', ''),
-  );
-  return result
-    ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      }
-    : null;
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!m) return null;
+  return {
+    r: parseInt(m[1], 16) / 255,
+    g: parseInt(m[2], 16) / 255,
+    b: parseInt(m[3], 16) / 255,
+  };
+}
+
+export function histogramToVector(
+  histogram: Record<ColorBin, number>,
+): number[] {
+  const vector = BIN_NAMES.map((bin) => histogram[bin] || 0);
+  const sum = vector.reduce((a, b) => a + b, 0) || 1;
+  return vector.map((v) => v / sum);
+}
+
+export function createVectorString(
+  histogram: Record<ColorBin, number>,
+): string {
+  const vector = histogramToVector(histogram);
+  if (vector.length !== TOTAL_BINS)
+    throw new Error(`Histogram vector must have ${TOTAL_BINS} bins`);
+  return `[${vector.join(',')}]`;
 }

@@ -1,4 +1,4 @@
-export type ColorBin = string; // Тепер будь-який ключ типу 'hist*'
+export type ColorBin = string;
 
 export type Histogram = Record<ColorBin, number>;
 
@@ -11,9 +11,8 @@ export class SkinDto {
   type: string;
   dominantHex: string;
 
-  histogram?: string; // JSON рядок з вектором
+  histogram?: string;
 
-  // Автоматично динамічні поля hist*, які будуть заповнені parseHistogram
   [key: string]: any;
 }
 

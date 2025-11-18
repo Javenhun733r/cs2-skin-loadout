@@ -1,46 +1,172 @@
+.LoadoutPage {
+	width: 100%;
+}
+
 .LoadoutHeader {
 	display: flex;
 	align-items: center;
-	gap: 20px;
+	justify-content: space-between;
 	margin-bottom: 2rem;
+	flex-wrap: wrap;
+	gap: 1rem;
+}
+
+.HeaderControls {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
 }
 
 .BackLink {
 	text-decoration: none;
 	color: var(--color-primary);
-	font-size: 16px;
-	white-space: nowrap;
+	font-weight: 600;
 }
 
 .BackLink:hover {
 	text-decoration: underline;
-	color: var(--color-primary-dark);
 }
 
-.LoadoutHeader h2 {
-	margin: 0;
+.CS2Container {
+	display: flex;
+	flex-direction: column;
+	gap: 2rem;
+}
+
+.EquipmentRow {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 1rem;
+}
+
+.EquipmentSlot {
+	text-align: center;
+}
+
+.EquipmentSlot h4 {
+	margin-bottom: 1rem;
+	color: var(--color-text-secondary);
+	text-transform: uppercase;
+	font-size: 0.9rem;
+	letter-spacing: 1px;
+}
+
+.EquipmentGrid {
+	display: flex;
+	gap: 20px;
+	justify-content: center;
+}
+
+.EquipmentGrid .SkinCard {
+	width: 200px;
+}
+
+.WeaponsLayout {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 20px;
+}
+
+@media (max-width: 768px) {
+	.WeaponsLayout {
+		grid-template-columns: 1fr;
+	}
+}
+
+.WeaponColumn {
+	background-color: rgba(0, 0, 0, 0.03);
+	padding: 15px;
+	border-radius: var(--radius);
+	border: 1px solid var(--color-border);
+}
+
+[data-theme='dark'] .WeaponColumn {
+	background-color: rgba(255, 255, 255, 0.03);
+}
+
+.WeaponColumn h3 {
+	text-align: center;
+	text-transform: uppercase;
+	color: var(--color-text-secondary);
+	font-size: 1rem;
+	margin-top: 0;
+	margin-bottom: 1rem;
+	border-bottom: 2px solid var(--color-border);
+	padding-bottom: 0.5rem;
+}
+
+.SlotList {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.WeaponColumn .SkinCard {
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	color: var(--color-text-primary);
+	text-align: left;
+	padding: 8px;
+	height: 80px;
 }
 
-.ColorChip {
-	display: inline-block;
-	width: 24px;
-	height: 24px;
+.WeaponColumn .SkinCardImage {
+	width: 80px;
+	height: 60px;
+	object-fit: contain;
+	flex-shrink: 0;
+}
+
+.WeaponColumn .SkinCardName {
+	font-size: 13px;
+	margin: 0;
+	line-height: 1.2;
+}
+
+.WeaponColumn .SkinCardWeapon {
+	display: block;
+	font-size: 11px;
+	opacity: 0.7;
+}
+
+.WeaponColumn .SkinCardPrice {
+	position: static;
+	background: none;
+	color: var(--color-primary);
+	padding: 0;
+	margin-top: 4px;
+	font-size: 12px;
+}
+
+.EmptySlot {
+	height: 80px;
+	border: 2px dashed var(--color-border);
+	border-radius: var(--radius);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--color-text-secondary);
+	font-size: 0.9rem;
+	background-color: rgba(0, 0, 0, 0.02);
+}
+
+.ModeToggleCompact {
+	display: flex;
 	border: 1px solid var(--color-border);
 	border-radius: 4px;
+	overflow: hidden;
 }
 
-.ResultsHeader {
-	text-align: center;
-	border-bottom: 1px solid var(--color-border);
-	padding-bottom: 10px;
+.ModeToggleCompact button {
+	padding: 5px 10px;
+	font-size: 12px;
+	border: none;
+	cursor: pointer;
+	background: var(--color-surface);
 	color: var(--color-text-secondary);
 }
 
-.ErrorText {
-	color: var(--color-error-text);
-	text-align: center;
+.ModeToggleCompact button.active {
+	background: var(--color-primary);
+	color: #fff;
 }

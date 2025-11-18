@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SkinCard } from '../../components/skin-card/SkinCard';
-import { SkinGrid } from '../../components/skin-grid/SkinGrid';
 import { Alert } from '../../components/ui/alert/Alert';
 import { Spinner } from '../../components/ui/spinner/Spinner';
 import * as api from '../../lib/api';
@@ -10,8 +9,65 @@ import './LoadoutPage.css';
 
 type LoadoutMode = 'premium' | 'budget';
 
+const WEAPON_CATEGORIES = {
+	pistols: [
+		'glock-18',
+		'usp-s',
+		'p2000',
+		'p250',
+		'five-seven',
+		'tec-9',
+		'cz75-auto',
+		'dual berettas',
+		'desert eagle',
+		'r8 revolver',
+	],
+	midTier: [
+		'mac-10',
+		'mp9',
+		'mp7',
+		'mp5-sd',
+		'ump-45',
+		'p90',
+		'pp-bizon',
+		'nova',
+		'xm1014',
+		'mag-7',
+		'sawed-off',
+		'negev',
+		'm249',
+	],
+	rifles: [
+		'galil ar',
+		'famas',
+		'ak-47',
+		'm4a4',
+		'm4a1-s',
+		'ssg 08',
+		'sg 553',
+		'aug',
+		'awp',
+		'g3sg1',
+		'scar-20',
+	],
+};
+
+interface CategorizedLoadout {
+	pistols: SkinWithDistance[];
+	midTier: SkinWithDistance[];
+	rifles: SkinWithDistance[];
+	knife: SkinWithDistance | null;
+	glove: SkinWithDistance | null;
+}
+
 export default function LoadoutPage() {
-	const [loadout, setLoadout] = useState<SkinWithDistance[]>([]);
+	const [categorized, setCategorized] = useState<CategorizedLoadout>({
+		pistols: [],
+		midTier: [],
+		rifles: [],
+		knife: null,
+		glove: null,
+	});
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -22,11 +78,7 @@ export default function LoadoutPage() {
 	);
 
 	useEffect(() => {
-		if (!color) {
-			setError('No color specified.');
-			return;
-		}
-
+		if (!color) return;
 		setSearchParams({ color, mode });
 
 		const loadData = async () => {
@@ -34,7 +86,7 @@ export default function LoadoutPage() {
 			setError(null);
 			try {
 				const data = await api.fetchLoadout(color, mode);
-				setLoadout(data);
+				processLoadoutData(data);
 			} catch (err) {
 				setError((err as Error).message);
 			} finally {
@@ -45,55 +97,153 @@ export default function LoadoutPage() {
 		loadData();
 	}, [color, mode, setSearchParams]);
 
+	const processLoadoutData = (skins: SkinWithDistance[]) => {
+		const newLoadout: CategorizedLoadout = {
+			pistols: [],
+			midTier: [],
+			rifles: [],
+			knife: null,
+			glove: null,
+		};
+
+		skins.forEach(skin => {
+			if (skin.type === 'knife') {
+				if (!newLoadout.knife) newLoadout.knife = skin;
+			} else if (skin.type === 'glove') {
+				if (!newLoadout.glove) newLoadout.glove = skin;
+			} else if (skin.weapon) {
+				const weaponName = skin.weapon.toLowerCase();
+
+				if (WEAPON_CATEGORIES.pistols.includes(weaponName)) {
+					newLoadout.pistols.push(skin);
+				} else if (WEAPON_CATEGORIES.midTier.includes(weaponName)) {
+					newLoadout.midTier.push(skin);
+				} else if (WEAPON_CATEGORIES.rifles.includes(weaponName)) {
+					newLoadout.rifles.push(skin);
+				}
+			}
+		});
+
+		newLoadout.pistols = newLoadout.pistols.slice(0, 5);
+		newLoadout.midTier = newLoadout.midTier.slice(0, 5);
+		newLoadout.rifles = newLoadout.rifles.slice(0, 5);
+
+		setCategorized(newLoadout);
+	};
+
+	const hasItems =
+		categorized.pistols.length > 0 ||
+		categorized.midTier.length > 0 ||
+		categorized.rifles.length > 0 ||
+		categorized.knife ||
+		categorized.glove;
+
 	return (
-		<section>
+		<section className='LoadoutPage'>
 			<div className='LoadoutHeader'>
 				<Link to='/' className='BackLink'>
 					&larr; Back to Search
 				</Link>
-				<h2>Full Loadout for:</h2>
-				<input
-					type='color'
-					className='ColorPicker'
-					value={`#${color}`}
-					onChange={e => setColor(e.target.value.replace('#', ''))}
-				/>
+				<h2>CS2 Loadout Builder</h2>
+				<div className='HeaderControls'>
+					<input
+						type='color'
+						className='ColorPicker'
+						value={`#${color}`}
+						onChange={e => setColor(e.target.value.replace('#', ''))}
+					/>
+					<div className='ModeToggleCompact'>
+						<button
+							className={`ModeButton ${mode === 'premium' ? 'active' : ''}`}
+							onClick={() => setMode('premium')}
+						>
+							Best Match
+						</button>
+						<button
+							className={`ModeButton ${mode === 'budget' ? 'active' : ''}`}
+							onClick={() => setMode('budget')}
+						>
+							Budget
+						</button>
+					</div>
+				</div>
 			</div>
 
-			{}
-			<div className='ModeToggle'>
-				<button
-					className={`ModeButton ${mode === 'premium' ? 'active' : ''}`}
-					onClick={() => setMode('premium')}
-				>
-					💎 Best Match
-				</button>
-				<button
-					className={`ModeButton ${mode === 'budget' ? 'active' : ''}`}
-					onClick={() => setMode('budget')}
-				>
-					💰 Budget-Friendly
-				</button>
-			</div>
+			{isLoading && <Spinner />}
+			{error && <Alert type='error'>{error}</Alert>}
 
-			<main>
-				{isLoading && <Spinner />}
-				{error && <Alert type='error'>{error}</Alert>}
+			{!isLoading && !hasItems && !error && (
+				<Alert type='info'>
+					No matching skins found for this color. Try choosing a more common
+					color or switching modes.
+				</Alert>
+			)}
 
-				{!isLoading && !error && loadout.length === 0 && (
-					<Alert type='info'>
-						No weapon skins found for this color combination.
-					</Alert>
-				)}
+			{!isLoading && hasItems && (
+				<div className='CS2Container'>
+					<div className='EquipmentRow'>
+						<div className='EquipmentSlot'>
+							<h4>Agent & Equipment</h4>
+							<div className='EquipmentGrid'>
+								{categorized.knife ? (
+									<SkinCard skin={categorized.knife} />
+								) : (
+									<div className='EmptySlot'>No Knife</div>
+								)}
+								{categorized.glove ? (
+									<SkinCard skin={categorized.glove} />
+								) : (
+									<div className='EmptySlot'>No Gloves</div>
+								)}
+							</div>
+						</div>
+					</div>
 
-				{!isLoading && loadout.length > 0 && (
-					<SkinGrid>
-						{loadout.map(skin => (
-							<SkinCard key={skin.id} skin={skin} />
-						))}
-					</SkinGrid>
-				)}
-			</main>
+					<div className='WeaponsLayout'>
+						<div className='WeaponColumn'>
+							<h3>Pistols</h3>
+							<div className='SlotList'>
+								{categorized.pistols.map(skin => (
+									<SkinCard key={skin.id} skin={skin} />
+								))}
+								{[...Array(5 - categorized.pistols.length)].map((_, i) => (
+									<div key={`empty-p-${i}`} className='EmptySlot'>
+										Empty Slot
+									</div>
+								))}
+							</div>
+						</div>
+
+						<div className='WeaponColumn'>
+							<h3>Mid-Tier</h3>
+							<div className='SlotList'>
+								{categorized.midTier.map(skin => (
+									<SkinCard key={skin.id} skin={skin} />
+								))}
+								{[...Array(5 - categorized.midTier.length)].map((_, i) => (
+									<div key={`empty-m-${i}`} className='EmptySlot'>
+										Empty Slot
+									</div>
+								))}
+							</div>
+						</div>
+
+						<div className='WeaponColumn'>
+							<h3>Rifles</h3>
+							<div className='SlotList'>
+								{categorized.rifles.map(skin => (
+									<SkinCard key={skin.id} skin={skin} />
+								))}
+								{[...Array(5 - categorized.rifles.length)].map((_, i) => (
+									<div key={`empty-r-${i}`} className='EmptySlot'>
+										Empty Slot
+									</div>
+								))}
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
 		</section>
 	);
 }
