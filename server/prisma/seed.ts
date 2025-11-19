@@ -1,31 +1,32 @@
-/* eslint-disable */
 import { Prisma, PrismaClient } from '@prisma/client';
 import axios from 'axios';
-import { oklch, parse } from 'culori';
 import * as KMeans from 'ml-kmeans';
-
 import pLimit from 'p-limit';
 import sharp from 'sharp';
+
+import {
+  BIN_NAMES,
+  classifyColor,
+  createVectorString,
+  type ColorBin,
+} from '../src/utils/color.utils';
+
+type Histogram = Record<ColorBin, number>;
+
 const SKINS_JSON_URL =
   'https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json';
 
 const prisma = new PrismaClient();
 const DB_BATCH_SIZE = 500;
 const CONCURRENT_DOWNLOADS = 10;
-const TOTAL_BINS = 64;
 
 const CONFIG = {
   IMAGE_RESIZE: { width: 128, height: 128 },
   ALPHA_THRESHOLD: 230,
-  ACHROMATIC_THRESHOLD: 0.7,
-  LIGHTNESS_BLACK: 0.2,
-  LIGHTNESS_WHITE: 0.98,
-  CHROMA_GRAY: 0.03,
   REQUEST_TIMEOUT: 15000,
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,
-
-  BRIGHTNESS_BOOST: 1.2,
+  BRIGHTNESS_BOOST: 1.0,
   SATURATION_BOOST: 1.1,
 } as const;
 
@@ -37,47 +38,6 @@ interface RawSkinData {
   image: string;
 }
 
-interface HexColor {
-  hex: () => string;
-}
-
-const HUE_BINS = 12;
-const HUE_BIN_WIDTH = 360 / HUE_BINS;
-
-const CHROMATIC_BIN_NAMES = [
-  'Red',
-  'Orange',
-  'Yellow',
-  'YellowGreen',
-  'Green',
-  'CyanGreen',
-  'Cyan',
-  'CyanBlue',
-  'Blue',
-  'Indigo',
-  'Purple',
-  'Magenta',
-];
-
-const PRIMARY_BIN_NAMES = [
-  ...CHROMATIC_BIN_NAMES,
-  'Brown',
-  'Black',
-  'Gray',
-  'White',
-] as const;
-
-type ColorBin = (typeof PRIMARY_BIN_NAMES)[number] | `Other${number}`;
-type Histogram = Record<ColorBin, number>;
-
-const BIN_NAMES: ColorBin[] = [
-  ...PRIMARY_BIN_NAMES,
-  ...Array.from(
-    { length: TOTAL_BINS - PRIMARY_BIN_NAMES.length },
-    (_, i) => `Other${i + 1}` as ColorBin,
-  ),
-];
-
 interface SkinDataForRawInsert {
   id: string;
   name: string;
@@ -87,21 +47,6 @@ interface SkinDataForRawInsert {
   type: string;
   dominantHex: string;
   histogramVector: string;
-}
-
-interface OklchColor {
-  l: number;
-  c: number;
-  h: number;
-}
-
-function isColor(c: unknown): c is HexColor {
-  return (
-    typeof c === 'object' &&
-    c !== null &&
-    'hex' in c &&
-    typeof (c as HexColor).hex === 'function'
-  );
 }
 
 function getErrorMessage(err: unknown): string {
@@ -116,120 +61,6 @@ function logError(err: unknown, context?: string): void {
   else console.error(message);
 }
 
-function safeOklch(r: number, g: number, b: number): OklchColor | null {
-  try {
-    const result = (
-      oklch as (color: {
-        mode: string;
-        r: number;
-        g: number;
-        b: number;
-      }) => Record<string, unknown> | undefined
-    )({
-      mode: 'rgb',
-      r,
-      g,
-      b,
-    });
-
-    if (!result || typeof result !== 'object') return null;
-
-    const l = result.l;
-    const c = result.c;
-    const h = result.h;
-
-    if (
-      typeof l !== 'number' ||
-      isNaN(l) ||
-      typeof c !== 'number' ||
-      isNaN(c) ||
-      typeof h !== 'number' ||
-      isNaN(h)
-    ) {
-      return null;
-    }
-
-    return { l, c, h: h || 0 };
-  } catch {
-    return null;
-  }
-}
-
-function isBoringColor(hex: string): boolean {
-  try {
-    const p = parse(hex);
-    if (!p) return true;
-
-    const col = oklch(p);
-    if (!col) return true;
-
-    const l = col.l;
-    const c = col.c;
-
-    if (l < 0.1 || l > 0.98) return true;
-
-    if (c < 0.03) return true;
-
-    return false;
-  } catch {
-    return true;
-  }
-}
-function rgbToHsv(r: number, g: number, b: number) {
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const d = max - min;
-
-  let h = 0;
-  if (d !== 0) {
-    switch (max) {
-      case r:
-        h = ((g - b) / d) % 6;
-        break;
-      case g:
-        h = (b - r) / d + 2;
-        break;
-      case b:
-        h = (r - g) / d + 4;
-        break;
-    }
-  }
-
-  h = Math.round(h * 60);
-  if (h < 0) h += 360;
-
-  const s = max === 0 ? 0 : d / max;
-  const v = max;
-
-  return { h, s, v };
-}
-
-function classifyColor(
-  r: number,
-  g: number,
-  b: number,
-  a: number,
-): ColorBin | null {
-  if (a < 30) return null;
-
-  const o = safeOklch(r, g, b);
-  if (!o) return 'Gray';
-
-  const { l, c } = o;
-
-  if (l < 0.12) return 'Black';
-  if (l > 0.97) return 'White';
-  if (c < 0.025) return 'Gray';
-
-  const { h } = rgbToHsv(r, g, b);
-
-  if (h >= 20 && h <= 75 && l < 0.55 && c < 0.1) {
-    return 'Brown';
-  }
-
-  const hueIndex = Math.floor(h / HUE_BIN_WIDTH) % HUE_BINS;
-  return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
-}
 async function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -256,8 +87,10 @@ async function fetchWithRetry(url: string): Promise<Buffer> {
   }
 
   console.error(`fetchWithRetry FAILED for ${url}`);
+  // eslint-disable-next-line @typescript-eslint/only-throw-error
   throw lastErr ?? new Error('Unknown fetch error');
 }
+
 function rgbToHex(r: number, g: number, b: number) {
   const toHex = (x: number) => {
     const h = Math.round(x).toString(16);
@@ -265,12 +98,13 @@ function rgbToHex(r: number, g: number, b: number) {
   };
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
+
 async function extractColorData(
   imageUrl: string,
 ): Promise<{ histogram: Histogram; dominantHex: string }> {
-  const histogram: Histogram = Object.fromEntries(
-    BIN_NAMES.map((k) => [k, 0]),
-  ) as Histogram;
+  const histogram = {} as Histogram;
+  BIN_NAMES.forEach((bin) => (histogram[bin] = 0));
+
   let dominantHex = '#808080';
 
   try {
@@ -280,7 +114,7 @@ async function extractColorData(
       .ensureAlpha()
       .resize(CONFIG.IMAGE_RESIZE.width, CONFIG.IMAGE_RESIZE.height, {
         fit: 'inside',
-        kernel: 'lanczos3',
+        kernel: 'nearest',
       })
       .modulate({
         brightness: CONFIG.BRIGHTNESS_BOOST,
@@ -293,66 +127,62 @@ async function extractColorData(
     let actualPixels = 0;
 
     for (let i = 0; i < data.length; i += 4) {
-      const r = data[i] / 255;
-      const g = data[i + 1] / 255;
-      const b = data[i + 2] / 255;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
       const a = data[i + 3];
 
       if (a < CONFIG.ALPHA_THRESHOLD) continue;
 
-      const bin = classifyColor(r, g, b, a);
-      if (bin) histogram[bin]++;
+      const bin = classifyColor(r / 255, g / 255, b / 255, a);
+      if (bin) {
+        histogram[bin] = (histogram[bin] || 0) + 1;
+      }
+
       actualPixels++;
-      const hex = rgbToHex(r * 255, g * 255, b * 255);
-      if (!isBoringColor(hex)) pixels.push([r * 255, g * 255, b * 255]);
+
+      if (actualPixels % 5 === 0) {
+        pixels.push([r, g, b]);
+      }
     }
 
     if (actualPixels > 0) {
-      BIN_NAMES.forEach((k) => {
-        histogram[k] = histogram[k] / actualPixels;
-      });
+      for (const key of BIN_NAMES) {
+        histogram[key] = (histogram[key] || 0) / actualPixels;
+      }
     }
 
     if (pixels.length > 0) {
-      let dominantHexCandidate = '#808080';
       try {
         const k = Math.min(4, pixels.length);
-        const kmeansResult = KMeans.kmeans(pixels, k, {
+        const result = KMeans.kmeans(pixels, k, {
           initialization: 'kmeans++',
         });
 
-        if (
-          kmeansResult &&
-          Array.isArray(kmeansResult.centroids) &&
-          Array.isArray(kmeansResult.clusters) &&
-          kmeansResult.centroids.length > 0
-        ) {
-          const centroids = kmeansResult.centroids as number[][];
+        if (result && result.centroids) {
+          const counts = new Array(k).fill(0);
+          for (const c of result.clusters) counts[c]++;
 
-          const counts = new Array(centroids.length).fill(0);
-          kmeansResult.clusters.forEach((label) => {
-            if (label >= 0 && label < counts.length) counts[label]++;
-          });
-
-          const domIndex = counts.indexOf(Math.max(...counts));
-          if (centroids[domIndex]) {
-            const [dr, dg, db] = centroids[domIndex].map((v) =>
-              Math.max(0, Math.min(255, v)),
-            );
-            dominantHexCandidate = rgbToHex(dr, dg, db);
+          let maxIdx = 0;
+          for (let i = 1; i < k; i++) {
+            if (counts[i] > counts[maxIdx]) maxIdx = i;
           }
-        }
-      } catch (err) {
-        logError(err, `KMeans failed for ${imageUrl}, fallback to gray`);
-      }
 
-      dominantHex = dominantHexCandidate;
+          const centroid = result.centroids[maxIdx];
+          dominantHex = rgbToHex(centroid[0], centroid[1], centroid[2]);
+        }
+      } catch (e) {
+        console.warn('KMeans error:', e);
+      }
     }
 
     return { histogram, dominantHex };
   } catch (err) {
-    logError(err, `Error extracting data for ${imageUrl}`);
-    return { histogram, dominantHex };
+    logError(err, `Error processing ${imageUrl}`);
+
+    const emptyHist = {} as Histogram;
+    BIN_NAMES.forEach((b) => (emptyHist[b] = 0));
+    return { histogram: emptyHist, dominantHex: '#808080' };
   }
 }
 
@@ -383,39 +213,16 @@ function determineSkinType(
     'ursus',
   ];
   if (knifeKeywords.some((k) => name.includes(k))) return 'knife';
-
   if (name.includes('zeus')) return 'other';
 
   return 'weapon';
-}
-
-function histogramToVector(histogram: Histogram): number[] {
-  const vector = Array(TOTAL_BINS).fill(0);
-
-  BIN_NAMES.forEach((bin, idx) => {
-    vector[idx] = histogram[bin] || 0;
-  });
-
-  const sum = vector.reduce((a, b) => a + b, 0) || 1;
-  return vector.map((v) => v / sum);
-}
-
-function createVectorString(histogram: Histogram): string {
-  const vector = histogramToVector(histogram);
-
-  if (vector.length !== TOTAL_BINS) {
-    throw new Error(
-      `Vector must have exactly ${TOTAL_BINS} dimensions, got ${vector.length}`,
-    );
-  }
-
-  return `[${vector.join(',')}]`;
 }
 
 async function processSkin(skin: RawSkinData): Promise<SkinDataForRawInsert> {
   const { histogram, dominantHex } = await extractColorData(skin.image);
   const weaponName = skin.weapon?.name ?? '';
   const rarityName = skin.rarity?.name ?? '';
+
   const histogramVector = createVectorString(histogram);
 
   return {
@@ -466,7 +273,9 @@ async function main(): Promise<void> {
           processed++;
           if (processed % 50 === 0) {
             console.log(
-              `Processing: ${processed}/${rawSkins.length} (${Math.round((processed / rawSkins.length) * 100)}%)`,
+              `Processing: ${processed}/${rawSkins.length} (${Math.round(
+                (processed / rawSkins.length) * 100,
+              )}%)`,
             );
           }
           return result;
@@ -483,7 +292,11 @@ async function main(): Promise<void> {
         const values = Prisma.join(
           batch.map(
             (skin) =>
-              Prisma.sql`(${skin.id}, ${skin.name}, ${skin.image}, ${skin.weapon}, ${skin.rarity}, ${skin.type}, ${skin.dominantHex}, ${skin.histogramVector}::vector)`,
+              Prisma.sql`(${skin.id}, ${skin.name}, ${skin.image}, ${
+                skin.weapon
+              }, ${skin.rarity}, ${skin.type}, ${skin.dominantHex}, ${
+                skin.histogramVector
+              }::vector)`,
           ),
         );
 
@@ -494,7 +307,10 @@ async function main(): Promise<void> {
         `;
 
         console.log(
-          `Written ${Math.min(i + batch.length, allSkinsData.length)} / ${allSkinsData.length} skins to DB...`,
+          `Written ${Math.min(
+            i + batch.length,
+            allSkinsData.length,
+          )} / ${allSkinsData.length} skins to DB...`,
         );
       } catch (err) {
         logError(err, `Error writing batch ${i / DB_BATCH_SIZE + 1}`);

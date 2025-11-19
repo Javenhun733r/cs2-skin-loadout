@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { oklch, parse } from 'culori';
 import { PrismaService } from '../prisma/prisma.service';
+import { BIN_NAMES } from '../utils/color.utils';
 import {
   FindByHistogramRepoDto,
   FindLoadoutRepoDto,
@@ -143,7 +144,8 @@ export class SkinsRepository {
         .slice(0, limit);
     }
 
-    const values = Object.values(targetVector);
+    const values = BIN_NAMES.map((bin) => targetVector[bin] || 0);
+
     const sum = values.reduce((a, b) => a + b, 0) || 1;
     const normalized = values.map((v) => v / sum);
     const vectorString = `[${normalized.join(',')}]`;
@@ -166,9 +168,10 @@ export class SkinsRepository {
     dto: FindLoadoutRepoDto,
   ): Promise<SkinWithDistanceDto[]> {
     const { targetVector } = dto;
-    const threshold = dto.threshold || 0.5;
+    const threshold = dto.threshold || 0.8;
 
-    const values = Object.values(targetVector);
+    const values = BIN_NAMES.map((bin) => targetVector[bin] || 0);
+
     const sum = values.reduce((a, b) => a + b, 0) || 1;
     const normalized = values.map((v) => v / sum);
     const vectorString = `[${normalized.join(',')}]`;

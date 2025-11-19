@@ -1,12 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-
 import { PricingService } from '../pricing/pricing.service';
-
 import {
   BIN_NAMES,
-  classifyColor,
+  CHROMATIC_BIN_NAMES,
   hexToRgb,
   safeOklch,
+  TOTAL_BINS,
 } from '../utils/color.utils';
 import { FindLoadoutDto } from './dto/find-loadout.dto';
 import { FindSimilarDto, FindSkinsDto } from './dto/find-skins.dto';
@@ -18,10 +17,10 @@ import {
 } from './dto/skin.dto';
 import { SkinsRepository } from './skins.repository';
 
-const TOTAL_BINS = 64;
-const LIGHTNESS_BLACK = 0.1;
+const LIGHTNESS_BLACK = 0.15;
 const LIGHTNESS_WHITE = 0.95;
-const CHROMA_GRAY = 0.05;
+const CHROMA_GRAY = 0.03;
+
 @Injectable()
 export class SkinsService {
   constructor(
@@ -54,22 +53,19 @@ export class SkinsService {
   private extractHistogramVector(skin: SkinDto): Histogram {
     const vector: Histogram = {} as Histogram;
     for (let i = 0; i < TOTAL_BINS; i++) {
+      const binName = BIN_NAMES[i];
       const key = `hist${i}`;
-
       const val = (skin as Record<string, unknown>)[key];
-
-      vector[key] = typeof val === 'number' && !isNaN(val) ? val : 0;
+      vector[binName] = typeof val === 'number' && !isNaN(val) ? val : 0;
     }
     return vector;
   }
 
   private sanitizeVector(vector: Histogram): Histogram {
     const safeVector: Histogram = {} as Histogram;
-    for (let i = 0; i < TOTAL_BINS; i++) {
-      const key = `hist${i}`;
-
-      const val = vector[key];
-      safeVector[key] = typeof val === 'number' && !isNaN(val) ? val : 0;
+    for (const bin of BIN_NAMES) {
+      const val = vector[bin];
+      safeVector[bin] = typeof val === 'number' && !isNaN(val) ? val : 0;
     }
     return safeVector;
   }
@@ -159,7 +155,7 @@ export class SkinsService {
     primaryBins: ColorBin[];
   } {
     const vector: Histogram = {} as Histogram;
-    for (let i = 0; i < TOTAL_BINS; i++) vector[`hist${i}`] = 0;
+    BIN_NAMES.forEach((bin) => (vector[bin] = 0));
 
     const rgb = hexToRgb(hex);
     if (!rgb) {
@@ -168,52 +164,55 @@ export class SkinsService {
 
     const oklchColor = safeOklch(rgb.r / 255, rgb.g / 255, rgb.b / 255);
 
-    if (
-      !oklchColor ||
-      oklchColor.l < LIGHTNESS_BLACK ||
-      oklchColor.l > LIGHTNESS_WHITE ||
-      oklchColor.c < CHROMA_GRAY
-    ) {
-      const binName = classifyColor(rgb.r / 255, rgb.g / 255, rgb.b / 255, 255);
-      if (!binName) {
-        return { targetVector: vector, primaryBins: [] };
-      }
-      const binIndex = BIN_NAMES.indexOf(binName);
-      if (binIndex === -1) {
-        return { targetVector: vector, primaryBins: [] };
-      }
-      const key = `hist${binIndex}`;
-      vector[key] = 1;
-      return { targetVector: vector, primaryBins: [key] };
+    if (!oklchColor) return { targetVector: vector, primaryBins: [] };
+
+    if (oklchColor.l < LIGHTNESS_BLACK) {
+      vector['Black'] = 0.6;
+      vector['Gray'] = 0.4;
+      return { targetVector: vector, primaryBins: ['Black'] };
+    }
+    if (oklchColor.l > LIGHTNESS_WHITE) {
+      vector['White'] = 0.6;
+      vector['Gray'] = 0.4;
+      return { targetVector: vector, primaryBins: ['White'] };
+    }
+    if (oklchColor.c < CHROMA_GRAY) {
+      vector['Gray'] = 1;
+      return { targetVector: vector, primaryBins: ['Gray'] };
     }
 
     const hue = (oklchColor.h ?? 0) % 360;
+    if (hue >= 20 && hue <= 75 && oklchColor.l < 0.55 && oklchColor.c < 0.15) {
+      vector['Brown'] = 1;
+      return { targetVector: vector, primaryBins: ['Brown'] };
+    }
 
-    const binWidth = 360 / TOTAL_BINS;
-    const exactBinPosition = isFinite(hue) ? hue / binWidth : 0;
+    const hueBinCount = CHROMATIC_BIN_NAMES.length;
+    const binWidth = 360 / hueBinCount;
 
-    const bin1_index = Math.floor(exactBinPosition) % TOTAL_BINS;
-    const bin2_index = (bin1_index + 1) % TOTAL_BINS;
+    const exactPos = hue / binWidth;
+    const bin1Idx = Math.floor(exactPos) % hueBinCount;
+    const bin2Idx = (bin1Idx + 1) % hueBinCount;
 
-    const bin2_weight = exactBinPosition - bin1_index;
-    const bin1_weight = 1.0 - bin2_weight;
+    const ratio = exactPos - Math.floor(exactPos);
 
-    const key1 = `hist${bin1_index}`;
-    const key2 = `hist${bin2_index}`;
+    const bin1Name = CHROMATIC_BIN_NAMES[bin1Idx];
+    const bin2Name = CHROMATIC_BIN_NAMES[bin2Idx];
 
-    vector[key1] = bin1_weight;
-    vector[key2] = bin2_weight;
+    vector[bin1Name] = 1.0 - ratio;
+    vector[bin2Name] = ratio;
 
-    const primaryBins = bin1_weight > bin2_weight ? [key1] : [key2];
+    const primaryBins = ratio > 0.5 ? [bin2Name] : [bin1Name];
 
     return { targetVector: vector, primaryBins };
   }
+
   private createTargetVectorFromColors(hexColors: string[]): {
     targetVector: Histogram;
     primaryBins: ColorBin[];
   } {
     const vector: Histogram = {} as Histogram;
-    for (let i = 0; i < TOTAL_BINS; i++) vector[`hist${i}`] = 0;
+    BIN_NAMES.forEach((bin) => (vector[bin] = 0));
 
     let totalWeight = 0;
     const primaryBins = new Set<ColorBin>();
@@ -222,11 +221,10 @@ export class SkinsService {
       const { targetVector: singleColorVector, primaryBins: singlePrimary } =
         this.createTargetVectorFromColor(hex);
 
-      for (let i = 0; i < TOTAL_BINS; i++) {
-        const key = `hist${i}`;
-        const weight = singleColorVector[key];
+      for (const bin of BIN_NAMES) {
+        const weight = singleColorVector[bin];
         if (weight > 0) {
-          vector[key] = (vector[key] || 0) + weight;
+          vector[bin] = (vector[bin] || 0) + weight;
         }
       }
 
@@ -235,9 +233,8 @@ export class SkinsService {
     }
 
     if (totalWeight > 0) {
-      for (let i = 0; i < TOTAL_BINS; i++) {
-        const key = `hist${i}`;
-        vector[key] = (vector[key] || 0) / totalWeight;
+      for (const bin of BIN_NAMES) {
+        vector[bin] = vector[bin] / totalWeight;
       }
     }
 

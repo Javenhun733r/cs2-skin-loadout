@@ -1,7 +1,7 @@
-/* eslint-disable */
+/*eslint-disable */
 import { oklch } from 'culori';
 
-export const TOTAL_BINS = 64;
+export const TOTAL_BINS = 16;
 
 const HUE_BINS = 12;
 const HUE_BIN_WIDTH = 360 / HUE_BINS;
@@ -19,7 +19,7 @@ export const CHROMATIC_BIN_NAMES = [
   'Indigo',
   'Purple',
   'Magenta',
-];
+] as const;
 
 export const PRIMARY_BIN_NAMES = [
   ...CHROMATIC_BIN_NAMES,
@@ -29,19 +29,13 @@ export const PRIMARY_BIN_NAMES = [
   'White',
 ] as const;
 
-export type ColorBin = (typeof PRIMARY_BIN_NAMES)[number] | `Other${number}`;
+export type ColorBin = (typeof PRIMARY_BIN_NAMES)[number];
 
-export const BIN_NAMES: ColorBin[] = [
-  ...PRIMARY_BIN_NAMES,
-  ...Array.from(
-    { length: TOTAL_BINS - PRIMARY_BIN_NAMES.length },
-    (_, i) => `Other${i + 1}` as ColorBin,
-  ),
-];
+export const BIN_NAMES: ColorBin[] = [...PRIMARY_BIN_NAMES];
 
-const LIGHTNESS_BLACK = 0.12;
-const LIGHTNESS_WHITE = 0.97;
-const CHROMA_GRAY = 0.025;
+const LIGHTNESS_BLACK = 0.1;
+const LIGHTNESS_WHITE = 0.95;
+const CHROMA_GRAY = 0.03;
 
 export function safeOklch(
   r: number,
@@ -51,10 +45,9 @@ export function safeOklch(
   try {
     const cResult = oklch({ mode: 'rgb', r, g, b });
     if (!cResult) return null;
-    const { l, c, h } = cResult;
-    if (![l, c, h].every((v) => typeof v === 'number' && isFinite(v)))
-      return null;
-    return { l, c, h };
+    const { l, c, h = 0 } = cResult;
+    if (typeof l !== 'number' || typeof c !== 'number') return null;
+    return { l, c, h: isNaN(h) ? 0 : h };
   } catch {
     return null;
   }
@@ -72,12 +65,13 @@ export function classifyColor(
   if (!col) return 'Gray';
 
   const { l, c } = col;
+
   if (l < LIGHTNESS_BLACK) return 'Black';
   if (l > LIGHTNESS_WHITE) return 'White';
   if (c < CHROMA_GRAY) return 'Gray';
 
   const hue = (col.h || 0) % 360;
-  if (hue >= 20 && hue <= 75 && l < 0.55 && c < 0.1) return 'Brown';
+  if (hue >= 20 && hue <= 75 && l < 0.55 && c < 0.15) return 'Brown';
 
   const hueIndex = Math.floor(hue / HUE_BIN_WIDTH) % HUE_BINS;
   return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
@@ -89,9 +83,9 @@ export function hexToRgb(
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!m) return null;
   return {
-    r: parseInt(m[1], 16) / 255,
-    g: parseInt(m[2], 16) / 255,
-    b: parseInt(m[3], 16) / 255,
+    r: parseInt(m[1], 16),
+    g: parseInt(m[2], 16),
+    b: parseInt(m[3], 16),
   };
 }
 
@@ -107,7 +101,5 @@ export function createVectorString(
   histogram: Record<ColorBin, number>,
 ): string {
   const vector = histogramToVector(histogram);
-  if (vector.length !== TOTAL_BINS)
-    throw new Error(`Histogram vector must have ${TOTAL_BINS} bins`);
   return `[${vector.join(',')}]`;
 }
