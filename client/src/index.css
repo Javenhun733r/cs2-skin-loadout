@@ -16,9 +16,10 @@
 
 	--radius: 12px;
 	--spacing: 1rem;
-}
-
-:root {
+	--glass-bg: rgba(255, 255, 255, 0.7);
+	--glass-border: rgba(255, 255, 255, 0.5);
+	--glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+	--backdrop-blur: blur(12px);
 	--color-background: #f0f2f5;
 	--color-surface: #ffffff;
 	--color-text-primary: #1a1b1e;
@@ -39,13 +40,22 @@
 	--shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
 	--shadow-md: 0 8px 32px rgba(0, 0, 0, 0.4);
 	--overlay-bg: rgba(26, 28, 32, 0.8);
+	--glass-bg: rgba(20, 22, 27, 0.6);
+	--glass-border: rgba(255, 255, 255, 0.08);
+	--glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
 
 body {
 	margin: 0;
 	font-family: var(--font-family);
-	background-color: var(--color-background);
-	color: var(--color-text-primary);
+	background: var(--color-background);
+	background-image: radial-gradient(
+			at 0% 0%,
+			rgba(75, 105, 255, 0.15) 0px,
+			transparent 50%
+		),
+		radial-gradient(at 100% 100%, rgba(200, 50, 100, 0.1) 0px, transparent 50%);
+	background-attachment: fixed;
 	transition: background-color 0.3s ease, color 0.3s ease;
 	-webkit-font-smoothing: antialiased;
 }

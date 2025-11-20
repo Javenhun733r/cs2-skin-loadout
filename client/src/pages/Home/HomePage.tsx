@@ -1,46 +1,37 @@
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SkinCard } from '../../components/skin-card/SkinCard';
-import { SkinGrid } from '../../components/skin-grid/SkinGrid';
-import { Alert } from '../../components/ui/alert/Alert';
 import { Button } from '../../components/ui/button/Button';
 import { SkinMarketModal } from '../../components/ui/modals/SkinMarketModal';
-import { SearchInput } from '../../components/ui/search-input/SearchInput';
-import { Spinner } from '../../components/ui/spinner/Spinner';
-import { EmptyState } from '../../components/ui/states/EmptyState';
 import { useSkinSearch } from '../../hooks/useSkinSearch';
-import * as api from '../../lib/api';
-import type { Skin, SkinWithDistance } from '../../types/types';
+import { HISTOGRAM_COLOR_MAP } from '../../lib/constants';
+import type { Skin } from '../../types/types';
 import './HomePage.css';
 
-type SearchMode = 'premium' | 'budget';
-
-const HISTOGRAM_COLOR_MAP: Record<string, string> = {
-	histRed: '#ff4500',
-	histOrange: '#ffa500',
-	histYellow: '#ffd700',
-	histGreen: '#32cd32',
-	histCyan: '#00ced1',
-	histBlue: '#1e90ff',
-	histPurple: '#8a2be2',
-	histPink: '#ff69b4',
-	histBrown: '#8b4513',
-	histBlack: '#202020',
-	histGray: '#808080',
-	histWhite: '#f5f5f5',
-};
+import { ColorSearchPanel } from './components/ColorSearchPanel';
+import { ResultsSection } from './components/ResultsSection';
+import { TextSearchPanel } from './components/TextSearchPanel';
+import { useHomeLogic } from './useHomeLogic';
 
 function HomePage() {
-	const [colors, setColors] = useState<string[]>(['#663399']);
-	const [selectedSkin, setSelectedSkin] = useState<Skin | null>(null);
-	const [similarSkins, setSimilarSkins] = useState<SkinWithDistance[]>([]);
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [searchMode, setSearchMode] = useState<SearchMode>('premium');
+	const navigate = useNavigate();
 	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
-	const navigate = useNavigate();
+	const {
+		colors,
+		selectedSkin,
+		similarSkins,
+		isLoading,
+		error,
+		searchMode,
+		setSearchMode,
+		handleColorChange,
+		addColor,
+		removeColor,
+		handleColorPickerSearch,
+		handleSkinSelect,
+	} = useHomeLogic();
 
 	const {
 		searchQuery,
@@ -51,76 +42,14 @@ function HomePage() {
 		clearSearch,
 	} = useSkinSearch();
 
-	const handleColorChange = (index: number, newColor: string) => {
-		const newColors = [...colors];
-		newColors[index] = newColor;
-		setColors(newColors);
-	};
-
-	const addColor = () => {
-		if (colors.length < 3) {
-			setColors([...colors, '#FFFFFF']);
-		}
-	};
-
-	const removeColor = (index: number) => {
-		if (colors.length > 1) {
-			setColors(colors.filter((_, i) => i !== index));
-		}
-	};
-
 	const handleCardClick = (skin: Skin) => {
 		setModalSkin(skin);
 		setIsModalOpen(true);
 	};
 
-	const findSimilarByColor = useCallback(
-		async (targetHexes: string[]) => {
-			setIsLoading(true);
-			setError(null);
-			setSimilarSkins([]);
-			try {
-				const data = await api.findSimilarSkinsByColors(
-					targetHexes,
-					20,
-					searchMode
-				);
-				setSimilarSkins(data.filter(skin => skin.id !== selectedSkin?.id));
-			} catch (err) {
-				setError((err as Error).message);
-			} finally {
-				setIsLoading(false);
-			}
-		},
-		[selectedSkin, searchMode]
-	);
-
-	const findSimilarBySkin = useCallback(
-		async (skinId: string) => {
-			setIsLoading(true);
-			setError(null);
-			setSimilarSkins([]);
-			try {
-				const data = await api.findSimilarSkinsBySkinId(skinId, 20, searchMode);
-				setSimilarSkins(data.filter(skin => skin.id !== skinId));
-			} catch (err) {
-				setError((err as Error).message);
-			} finally {
-				setIsLoading(false);
-			}
-		},
-		[searchMode]
-	);
-
-	const handleColorPickerSearch = () => {
-		setSelectedSkin(null);
-		findSimilarByColor(colors);
-	};
-
-	const handleSkinSelect = (skin: Skin) => {
+	const handleSearchSelect = (skin: Skin) => {
 		clearSearch();
-		setSelectedSkin(skin);
-		findSimilarBySkin(skin.id);
+		handleSkinSelect(skin);
 	};
 
 	const handleFindLoadout = () => {
@@ -156,119 +85,32 @@ function HomePage() {
 		navigate(`/loadout?colors=${colorsParam}&mode=${searchMode}`);
 	};
 
-	const showEmptyState =
-		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
-
 	return (
 		<div>
 			<div className='SearchArea'>
-				<div className='SearchBox'>
-					<label htmlFor='color-picker' className='SearchLabel'>
-						Find skins matching colors (up to 3):
-					</label>
-
-					{colors.map((color, index) => (
-						<div
-							key={index}
-							className='ColorControls'
-							style={{ marginBottom: '10px' }}
-						>
-							<input
-								type='color'
-								value={color}
-								onChange={e => handleColorChange(index, e.target.value)}
-								className='ColorPicker'
-							/>
-
-							{colors.length > 1 && (
-								<Button
-									onClick={() => removeColor(index)}
-									style={{
-										backgroundColor: 'var(--color-error-bg)',
-										color: 'var(--color-error-text)',
-										minWidth: '40px',
-									}}
-								>
-									X
-								</Button>
-							)}
-						</div>
-					))}
-
-					{colors.length < 3 && (
-						<Button
-							onClick={addColor}
-							style={{ width: '100%', marginTop: '5px' }}
-						>
-							+ Add Color
-						</Button>
-					)}
-
-					<Button
-						onClick={handleColorPickerSearch}
-						disabled={isLoading}
-						style={{ width: '100%', marginTop: '15px' }}
-					>
-						{isLoading && !selectedSkin ? 'Searching...' : 'Find by Color(s)'}
-					</Button>
-
-					<div className='ModeToggle' style={{ marginTop: '20px' }}>
-						<button
-							className={`ModeButton ${
-								searchMode === 'premium' ? 'active' : ''
-							}`}
-							onClick={() => setSearchMode('premium')}
-						>
-							💎 Best Match
-						</button>
-						<button
-							className={`ModeButton ${
-								searchMode === 'budget' ? 'active' : ''
-							}`}
-							onClick={() => setSearchMode('budget')}
-						>
-							💰 Budget-Friendly
-						</button>
-					</div>
-				</div>
+				<ColorSearchPanel
+					colors={colors}
+					onColorChange={handleColorChange}
+					onRemoveColor={removeColor}
+					onAddColor={addColor}
+					onSearch={handleColorPickerSearch}
+					isLoading={isLoading}
+					selectedSkin={selectedSkin}
+					searchMode={searchMode}
+					setSearchMode={setSearchMode}
+				/>
 
 				<span className='Divider'>OR</span>
 
-				<div className='SearchBox'>
-					<label htmlFor='search-input' className='SearchLabel'>
-						Find skins by item name:
-					</label>
-					<div className='SearchContainer'>
-						<SearchInput
-							id='search-input'
-							placeholder='e.g., Asiimov, Case Hardened...'
-							value={searchQuery}
-							onChange={e => setSearchQuery(e.target.value)}
-						/>
-
-						{isSearchLoading && <Spinner />}
-
-						{searchResults.length > 0 && (
-							<div className='SearchResults'>
-								{searchResults.map(skin => (
-									<div
-										key={skin.id}
-										className='SearchResultItem'
-										onClick={() => handleSkinSelect(skin)}
-									>
-										<img
-											src={skin.image}
-											alt={skin.name}
-											className='SearchResultImage'
-										/>
-										{skin.name}
-									</div>
-								))}
-							</div>
-						)}
-					</div>
-					{searchError && <Alert type='error'>{searchError}</Alert>}
-				</div>
+				<TextSearchPanel
+					searchQuery={searchQuery}
+					setSearchQuery={setSearchQuery}
+					clearSearch={clearSearch}
+					isLoading={isSearchLoading}
+					results={searchResults}
+					onSelectSkin={handleSearchSelect}
+					error={searchError}
+				/>
 			</div>
 
 			<div className='LoadoutButtonContainer'>
@@ -287,26 +129,15 @@ function HomePage() {
 					</div>
 				)}
 
-				{isLoading && <Spinner />}
-				{error && <Alert type='error'>{error}</Alert>}
-
-				{showEmptyState && (
-					<EmptyState
-						title='Find Your Perfect Skin'
-						message='Start by searching for a skin by name or picking a color.'
-					/>
-				)}
-				{!isLoading && similarSkins.length > 0 && (
-					<section>
-						<h2 className='ResultsHeader'>Similar Skins</h2>
-						<SkinGrid>
-							{similarSkins.map(skin => (
-								<SkinCard key={skin.id} skin={skin} onClick={handleCardClick} />
-							))}
-						</SkinGrid>
-					</section>
-				)}
+				<ResultsSection
+					isLoading={isLoading}
+					error={error}
+					similarSkins={similarSkins}
+					selectedSkin={selectedSkin}
+					onCardClick={handleCardClick}
+				/>
 			</main>
+
 			<SkinMarketModal
 				isOpen={isModalOpen}
 				onClose={() => setIsModalOpen(false)}

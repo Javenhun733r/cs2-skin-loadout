@@ -37,8 +37,14 @@ export function SkinMarketModal({
 			<div
 				className='ModalContent'
 				onClick={e => e.stopPropagation()}
-				style={{ borderTop: `4px solid ${rarityColor}` }}
+				style={
+					{
+						'--rarity-color': rarityColor,
+					} as React.CSSProperties
+				}
 			>
+				<div className='ModalGlow' />
+
 				<button className='CloseButton' onClick={onClose}>
 					✕
 				</button>

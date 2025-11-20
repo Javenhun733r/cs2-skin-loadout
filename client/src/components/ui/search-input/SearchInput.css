@@ -1,6 +1,23 @@
+.SearchInputWrapper {
+	position: relative;
+	display: flex;
+	align-items: center;
+	width: 100%;
+}
+
+.SearchIcon {
+	position: absolute;
+	left: 12px;
+	color: var(--color-text-secondary);
+	pointer-events: none;
+	font-size: 1.2rem;
+	z-index: 1;
+}
+
 .SearchInput {
 	width: 100%;
-	padding: 10px;
+
+	padding: 10px 35px 10px 40px;
 	font-size: 16px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius);
@@ -13,4 +30,22 @@
 .SearchInput:focus {
 	border-color: var(--color-primary);
 	outline: none;
+}
+
+.ClearButton {
+	position: absolute;
+	right: 10px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--color-text-secondary);
+	padding: 5px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: color 0.2s;
+}
+
+.ClearButton:hover {
+	color: var(--color-text-primary);
 }

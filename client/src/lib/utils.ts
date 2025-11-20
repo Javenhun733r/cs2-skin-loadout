@@ -3,7 +3,7 @@ export function rgbToHex(r: number, g: number, b: number): string {
 	return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 export function getRarityColor(rarity: string | null): string {
-	if (!rarity) return '#b0c3d9'; // Default color
+	if (!rarity) return '#b0c3d9';
 
 	const lowerRarity = rarity.toLowerCase();
 

@@ -1,173 +1,32 @@
-import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { SkinCard } from '../../components/skin-card/SkinCard';
 import { Alert } from '../../components/ui/alert/Alert';
 import { SkinMarketModal } from '../../components/ui/modals/SkinMarketModal';
+import { PopoverPicker } from '../../components/ui/popover-picker/PopoverPicker';
 import { Spinner } from '../../components/ui/spinner/Spinner';
-import * as api from '../../lib/api';
-import type { Skin, SkinWithDistance } from '../../types/types';
+import { LoadoutDisplay } from './components/LoadoutDisplay';
+import { TeamToggle } from './components/TeamToggle';
+import { useLoadoutLogic } from './hooks/useLoadoutLogic';
 import './LoadoutPage.css';
 
-type LoadoutMode = 'premium' | 'budget';
-
-const WEAPON_CATEGORIES = {
-	pistols: [
-		'glock-18',
-		'usp-s',
-		'p2000',
-		'p250',
-		'five-seven',
-		'tec-9',
-		'cz75-auto',
-		'dual berettas',
-		'desert eagle',
-		'r8 revolver',
-	],
-	midTier: [
-		'mac-10',
-		'mp9',
-		'mp7',
-		'mp5-sd',
-		'ump-45',
-		'p90',
-		'pp-bizon',
-		'nova',
-		'xm1014',
-		'mag-7',
-		'sawed-off',
-		'negev',
-		'm249',
-	],
-	rifles: [
-		'galil ar',
-		'famas',
-		'ak-47',
-		'm4a4',
-		'm4a1-s',
-		'ssg 08',
-		'sg 553',
-		'aug',
-		'awp',
-		'g3sg1',
-		'scar-20',
-	],
-};
-
-interface CategorizedLoadout {
-	pistols: SkinWithDistance[];
-	midTier: SkinWithDistance[];
-	rifles: SkinWithDistance[];
-	knife: SkinWithDistance | null;
-	glove: SkinWithDistance | null;
-}
-
 export default function LoadoutPage() {
-	const [categorized, setCategorized] = useState<CategorizedLoadout>({
-		pistols: [],
-		midTier: [],
-		rifles: [],
-		knife: null,
-		glove: null,
-	});
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [searchParams, setSearchParams] = useSearchParams();
-
-	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
-	const [isModalOpen, setIsModalOpen] = useState(false);
-
-	const [colors, setColors] = useState<string[]>(() => {
-		const param = searchParams.get('colors');
-		if (param) {
-			return param.split(',').map(c => `#${c}`);
-		}
-		const oldParam = searchParams.get('color');
-		return oldParam ? [`#${oldParam}`] : ['#663399'];
-	});
-
-	const [mode, setMode] = useState<LoadoutMode>(
-		(searchParams.get('mode') as LoadoutMode) || 'premium'
-	);
-
-	const handleColorChange = (index: number, newColor: string) => {
-		const newColors = [...colors];
-		newColors[index] = newColor;
-		setColors(newColors);
-	};
-
-	const addColor = () => {
-		if (colors.length < 3) {
-			setColors([...colors, '#FFFFFF']);
-		}
-	};
-
-	const removeColor = (index: number) => {
-		if (colors.length > 1) {
-			setColors(colors.filter((_, i) => i !== index));
-		}
-	};
-
-	const handleCardClick = (skin: Skin) => {
-		setModalSkin(skin);
-		setIsModalOpen(true);
-	};
-
-	useEffect(() => {
-		if (colors.length === 0) return;
-
-		const colorsParam = colors.map(c => c.replace('#', '')).join(',');
-		setSearchParams({ colors: colorsParam, mode });
-
-		const loadData = async () => {
-			setIsLoading(true);
-			setError(null);
-			try {
-				const data = await api.fetchLoadout(colors, mode);
-				processLoadoutData(data);
-			} catch (err) {
-				setError((err as Error).message);
-			} finally {
-				setIsLoading(false);
-			}
-		};
-
-		const timer = setTimeout(loadData, 500);
-		return () => clearTimeout(timer);
-	}, [colors, mode, setSearchParams]);
-
-	const processLoadoutData = (skins: SkinWithDistance[]) => {
-		const newLoadout: CategorizedLoadout = {
-			pistols: [],
-			midTier: [],
-			rifles: [],
-			knife: null,
-			glove: null,
-		};
-
-		skins.forEach(skin => {
-			if (skin.type === 'knife') {
-				if (!newLoadout.knife) newLoadout.knife = skin;
-			} else if (skin.type === 'glove') {
-				if (!newLoadout.glove) newLoadout.glove = skin;
-			} else if (skin.weapon) {
-				const weaponName = skin.weapon.toLowerCase();
-
-				if (WEAPON_CATEGORIES.pistols.includes(weaponName)) {
-					newLoadout.pistols.push(skin);
-				} else if (WEAPON_CATEGORIES.midTier.includes(weaponName)) {
-					newLoadout.midTier.push(skin);
-				} else if (WEAPON_CATEGORIES.rifles.includes(weaponName)) {
-					newLoadout.rifles.push(skin);
-				}
-			}
-		});
-
-		newLoadout.pistols = newLoadout.pistols.slice(0, 5);
-		newLoadout.midTier = newLoadout.midTier.slice(0, 5);
-		newLoadout.rifles = newLoadout.rifles.slice(0, 5);
-
-		setCategorized(newLoadout);
-	};
+	const {
+		colors,
+		mode,
+		team,
+		setTeam,
+		setMode,
+		categorized,
+		isLoading,
+		error,
+		modalSkin,
+		isModalOpen,
+		setIsModalOpen,
+		handleColorChange,
+		addColor,
+		removeColor,
+		handleCardClick,
+	} = useLoadoutLogic();
 
 	const hasItems =
 		categorized.pistols.length > 0 ||
@@ -177,12 +36,15 @@ export default function LoadoutPage() {
 		categorized.glove;
 
 	return (
-		<section className='LoadoutPage'>
+		<section className='LoadoutPage' data-team={team}>
 			<div className='LoadoutHeader'>
-				<Link to='/' className='BackLink'>
-					&larr; Back to Search
-				</Link>
-				<h2>CS2 Loadout Builder</h2>
+				<div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+					<Link to='/' className='BackLink'>
+						← Back
+					</Link>
+					<TeamToggle side={team} onChange={setTeam} />
+				</div>
+
 				<div className='HeaderControls'>
 					<div
 						className='ColorsContainer'
@@ -191,27 +53,22 @@ export default function LoadoutPage() {
 						{colors.map((color, index) => (
 							<div
 								key={index}
-								style={{
-									display: 'flex',
-									flexDirection: 'column',
-									gap: '2px',
-								}}
+								style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
 							>
-								<input
-									type='color'
-									className='ColorPicker'
-									value={color}
-									onChange={e => handleColorChange(index, e.target.value)}
+								<PopoverPicker
+									color={color}
+									onChange={newColor => handleColorChange(index, newColor)}
 								/>
 								{colors.length > 1 && (
 									<button
 										onClick={() => removeColor(index)}
 										style={{
-											fontSize: '10px',
+											fontSize: '12px',
 											border: 'none',
 											background: 'transparent',
-											color: 'var(--color-error-text)',
+											color: 'var(--color-text-secondary)',
 											cursor: 'pointer',
+											opacity: 0.7,
 										}}
 									>
 										✕
@@ -219,22 +76,18 @@ export default function LoadoutPage() {
 								)}
 							</div>
 						))}
-
 						{colors.length < 3 && (
 							<button
 								onClick={addColor}
 								className='AddColorBtn'
 								style={{
-									width: '30px',
-									height: '30px',
-									borderRadius: '50%',
-									border: '1px dashed var(--color-border)',
+									width: '40px',
+									height: '40px',
+									borderRadius: '10px',
+									border: '2px dashed var(--color-border)',
 									background: 'transparent',
 									cursor: 'pointer',
 									color: 'var(--color-text-secondary)',
-									display: 'flex',
-									alignItems: 'center',
-									justifyContent: 'center',
 									fontSize: '20px',
 								}}
 							>
@@ -242,6 +95,7 @@ export default function LoadoutPage() {
 							</button>
 						)}
 					</div>
+
 					<div className='ModeToggleCompact'>
 						<button
 							className={`ModeButton ${mode === 'premium' ? 'active' : ''}`}
@@ -264,92 +118,68 @@ export default function LoadoutPage() {
 
 			{!isLoading && !hasItems && !error && (
 				<Alert type='info'>
-					No matching skins found for this color. Try choosing a more common
-					color or switching modes.
+					No matching skins found. Try adjusting colors.
 				</Alert>
 			)}
 
 			{!isLoading && hasItems && (
-				<div className='CS2Container'>
-					<div className='EquipmentRow'>
-						<div className='EquipmentSlot'>
-							<h4>Agent & Equipment</h4>
-							<div className='EquipmentGrid'>
-								{categorized.knife ? (
+				<div className='LoadoutGrid'>
+					<div className='SidePanel'>
+						<div className='AgentCard'>
+							<div className='AgentSilhouette'>👤</div>
+							<span>{team} Agent</span>
+						</div>
+
+						<div className='EquipmentGrid'>
+							{categorized.knife ? (
+								<div
+									style={{
+										display: 'flex',
+										flexDirection: 'column',
+										gap: '5px',
+									}}
+								>
+									<span
+										className='CategoryHeader'
+										style={{ fontSize: '0.7rem' }}
+									>
+										Melee
+									</span>
 									<SkinCard
 										skin={categorized.knife}
 										onClick={handleCardClick}
 									/>
-								) : (
-									<div className='EmptySlot'>No Knife</div>
-								)}
-								{categorized.glove ? (
+								</div>
+							) : (
+								<div className='EmptySlot'>No Knife</div>
+							)}
+
+							{categorized.glove ? (
+								<div
+									style={{
+										display: 'flex',
+										flexDirection: 'column',
+										gap: '5px',
+									}}
+								>
+									<span
+										className='CategoryHeader'
+										style={{ fontSize: '0.7rem' }}
+									>
+										Gloves
+									</span>
 									<SkinCard
 										skin={categorized.glove}
 										onClick={handleCardClick}
 									/>
-								) : (
-									<div className='EmptySlot'>No Gloves</div>
-								)}
-							</div>
+								</div>
+							) : (
+								<div className='EmptySlot'>No Gloves</div>
+							)}
 						</div>
 					</div>
 
-					<div className='WeaponsLayout'>
-						<div className='WeaponColumn'>
-							<h3>Pistols</h3>
-							<div className='SlotList'>
-								{categorized.pistols.map(skin => (
-									<SkinCard
-										key={skin.id}
-										skin={skin}
-										onClick={handleCardClick}
-									/>
-								))}
-								{[...Array(5 - categorized.pistols.length)].map((_, i) => (
-									<div key={`empty-p-${i}`} className='EmptySlot'>
-										Empty Slot
-									</div>
-								))}
-							</div>
-						</div>
-
-						<div className='WeaponColumn'>
-							<h3>Mid-Tier</h3>
-							<div className='SlotList'>
-								{categorized.midTier.map(skin => (
-									<SkinCard
-										key={skin.id}
-										skin={skin}
-										onClick={handleCardClick}
-									/>
-								))}
-								{[...Array(5 - categorized.midTier.length)].map((_, i) => (
-									<div key={`empty-m-${i}`} className='EmptySlot'>
-										Empty Slot
-									</div>
-								))}
-							</div>
-						</div>
-
-						<div className='WeaponColumn'>
-							<h3>Rifles</h3>
-							<div className='SlotList'>
-								{categorized.rifles.map(skin => (
-									<SkinCard
-										key={skin.id}
-										skin={skin}
-										onClick={handleCardClick}
-									/>
-								))}
-								{[...Array(5 - categorized.rifles.length)].map((_, i) => (
-									<div key={`empty-r-${i}`} className='EmptySlot'>
-										Empty Slot
-									</div>
-								))}
-							</div>
-						</div>
-					</div>
+					<LoadoutDisplay loadout={categorized} onCardClick={handleCardClick} />
 				</div>
 			)}
 
