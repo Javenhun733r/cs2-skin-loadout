@@ -2,26 +2,15 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PricingService } from '../pricing/pricing.service';
 import {
   BIN_NAMES,
-  CHROMATIC_BIN_NAMES,
+  createTargetVectorFromColors,
   createVectorString,
-  hexToRgb,
-  safeOklch,
   TOTAL_BINS,
   type ColorBin as UtilsColorBin,
 } from '../utils/color.utils';
 import { FindLoadoutDto } from './dto/find-loadout.dto';
 import { FindSimilarDto, FindSkinsDto } from './dto/find-skins.dto';
-import {
-  SkinDto,
-  SkinResponseDto,
-  type ColorBin,
-  type Histogram,
-} from './dto/skin.dto';
+import { SkinDto, SkinResponseDto, type Histogram } from './dto/skin.dto';
 import { SkinsRepository } from './skins.repository';
-
-const LIGHTNESS_BLACK = 0.15;
-const LIGHTNESS_WHITE = 0.92;
-const CHROMA_GRAY = 0.08;
 
 @Injectable()
 export class SkinsService {
@@ -66,6 +55,21 @@ export class SkinsService {
     return vector;
   }
 
+  private calculateScore(
+    skin: SkinResponseDto,
+    mode: 'premium' | 'budget',
+  ): number {
+    const distance = skin.distance || 1;
+
+    const price = skin.price && skin.price.min > 0 ? skin.price.min : 9999999;
+
+    if (mode === 'budget') {
+      return (distance + 0.1) * Math.pow(price, 0.4);
+    }
+
+    return distance;
+  }
+
   async findSimilarSkinsBySkinId(
     skinId: string,
     dto: FindSimilarDto,
@@ -81,9 +85,9 @@ export class SkinsService {
     );
 
     const mode = dto.mode || 'premium';
-    const userLimit = dto.limit || 20;
+    const requestedLimit = dto.limit || 20;
 
-    const searchPoolLimit = mode === 'budget' ? 100 : userLimit;
+    const searchPoolLimit = requestedLimit * 5;
 
     const skinsFromRepo = await this.skinsRepository.findByVector(
       vectorString,
@@ -95,36 +99,40 @@ export class SkinsService {
       price: this.pricingService.getPriceByName(skin.name),
     }));
 
-    if (mode === 'budget') {
-      const getSortScore = (skin: SkinResponseDto) => {
-        const price = skin.price?.min || 5000;
-        const distance = 1 - (skin.distance || 0);
-
-        return distance * Math.pow(price, 0.4);
-      };
-      return skinsWithPrices
-        .sort((a, b) => getSortScore(a) - getSortScore(b))
-        .slice(0, userLimit);
-    }
-
-    return skinsWithPrices.filter((s) => s.id !== skinId);
+    return skinsWithPrices
+      .filter((s) => s.id !== skinId)
+      .sort(
+        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+      )
+      .slice(0, requestedLimit);
   }
 
   async findSkinsByColors(dto: FindSkinsDto): Promise<SkinResponseDto[]> {
-    const { targetVector } = this.createTargetVectorFromColors(dto.colors);
+    const { targetVector } = createTargetVectorFromColors(dto.colors);
     const vectorString = createVectorString(
       targetVector as unknown as Record<UtilsColorBin, number>,
     );
 
+    const limit = dto.limit || 20;
+    const searchLimit = limit * 5;
+
     const skinsFromRepo = await this.skinsRepository.findByVector(
       vectorString,
-      dto.limit || 20,
+      searchLimit,
     );
 
-    return skinsFromRepo.map((skin) => ({
+    const result = skinsFromRepo.map((skin) => ({
       ...this.parseHistogramFromSkin(skin),
       price: this.pricingService.getPriceByName(skin.name),
     }));
+
+    const mode = dto.mode || 'premium';
+
+    return result
+      .sort(
+        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+      )
+      .slice(0, limit);
   }
 
   async searchSkinsByName(
@@ -139,109 +147,45 @@ export class SkinsService {
   }
 
   async findLoadoutByColor(dto: FindLoadoutDto): Promise<SkinResponseDto[]> {
-    const { targetVector } = this.createTargetVectorFromColors(dto.colors);
+    const { targetVector } = createTargetVectorFromColors(dto.colors);
     const vectorString = createVectorString(
       targetVector as unknown as Record<UtilsColorBin, number>,
     );
 
     const skinsFromRepo = await this.skinsRepository.findAllLoadoutOptions(
       vectorString,
-      dto.threshold,
+      dto.threshold || 0.85,
     );
 
-    return skinsFromRepo.map((skin) => ({
+    const allSkinsWithPrice = skinsFromRepo.map((skin) => ({
       ...this.parseHistogramFromSkin(skin),
       price: this.pricingService.getPriceByName(skin.name),
     }));
-  }
 
-  private createTargetVectorFromColor(hex: string): {
-    targetVector: Histogram;
-    primaryBins: ColorBin[];
-  } {
-    const vector: Histogram = {} as Histogram;
-    BIN_NAMES.forEach((bin) => (vector[bin] = 0));
+    const mode = dto.mode || 'premium';
 
-    const rgb = hexToRgb(hex);
-    if (!rgb) {
-      return { targetVector: vector, primaryBins: [] };
-    }
+    const bestSkinsByWeapon = new Map<string, SkinResponseDto>();
 
-    const oklchColor = safeOklch(rgb.r / 255, rgb.g / 255, rgb.b / 255);
-    if (!oklchColor) return { targetVector: vector, primaryBins: [] };
+    for (const skin of allSkinsWithPrice) {
+      const weapon = skin.weapon;
+      if (!weapon) continue;
 
-    if (oklchColor.l < LIGHTNESS_BLACK) {
-      vector['Black'] = 0.6;
-      vector['Gray'] = 0.4;
-      return { targetVector: vector, primaryBins: ['Black'] };
-    }
-    if (oklchColor.l > LIGHTNESS_WHITE) {
-      vector['White'] = 0.6;
-      vector['Gray'] = 0.4;
-      return { targetVector: vector, primaryBins: ['White'] };
-    }
-    if (oklchColor.c < CHROMA_GRAY) {
-      vector['Gray'] = 1;
-      return { targetVector: vector, primaryBins: ['Gray'] };
-    }
+      const currentBest = bestSkinsByWeapon.get(weapon);
 
-    const hue = (oklchColor.h ?? 0) % 360;
-    if (hue >= 15 && hue <= 90 && oklchColor.l < 0.65 && oklchColor.c < 0.2) {
-      vector['Brown'] = 1;
-      return { targetVector: vector, primaryBins: ['Brown'] };
-    }
+      if (!currentBest) {
+        bestSkinsByWeapon.set(weapon, skin);
+      } else {
+        const scoreCurrent = this.calculateScore(skin, mode);
+        const scoreBest = this.calculateScore(currentBest, mode);
 
-    const hueBinCount = CHROMATIC_BIN_NAMES.length;
-    const binWidth = 360 / hueBinCount;
-
-    const exactPos = hue / binWidth;
-    const bin1Idx = Math.floor(exactPos) % hueBinCount;
-    const bin2Idx = (bin1Idx + 1) % hueBinCount;
-
-    const ratio = exactPos - Math.floor(exactPos);
-
-    const bin1Name = CHROMATIC_BIN_NAMES[bin1Idx];
-    const bin2Name = CHROMATIC_BIN_NAMES[bin2Idx];
-
-    vector[bin1Name] = 1.0 - ratio;
-    vector[bin2Name] = ratio;
-
-    const primaryBins = ratio > 0.5 ? [bin2Name] : [bin1Name];
-
-    return { targetVector: vector, primaryBins };
-  }
-
-  private createTargetVectorFromColors(hexColors: string[]): {
-    targetVector: Histogram;
-    primaryBins: ColorBin[];
-  } {
-    const vector: Histogram = {} as Histogram;
-    BIN_NAMES.forEach((bin) => (vector[bin] = 0));
-
-    let totalWeight = 0;
-    const primaryBins = new Set<ColorBin>();
-
-    for (const hex of hexColors) {
-      const { targetVector: singleColorVector, primaryBins: singlePrimary } =
-        this.createTargetVectorFromColor(hex);
-
-      for (const bin of BIN_NAMES) {
-        const weight = singleColorVector[bin];
-        if (weight > 0) {
-          vector[bin] = (vector[bin] || 0) + weight;
+        if (scoreCurrent < scoreBest) {
+          bestSkinsByWeapon.set(weapon, skin);
         }
       }
-
-      totalWeight += 1.0;
-      singlePrimary.forEach((bin) => primaryBins.add(bin));
     }
 
-    if (totalWeight > 0) {
-      for (const bin of BIN_NAMES) {
-        vector[bin] = vector[bin] / totalWeight;
-      }
-    }
-
-    return { targetVector: vector, primaryBins: Array.from(primaryBins) };
+    return Array.from(bestSkinsByWeapon.values()).sort(
+      (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+    );
   }
 }

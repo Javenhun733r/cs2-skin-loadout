@@ -33,9 +33,10 @@ export type ColorBin = (typeof PRIMARY_BIN_NAMES)[number];
 
 export const BIN_NAMES: ColorBin[] = [...PRIMARY_BIN_NAMES];
 
-export const LIGHTNESS_BLACK = 0.2;
-export const LIGHTNESS_WHITE = 0.8;
-export const CHROMA_GRAY = 0.08;
+export const LIGHTNESS_BLACK = 0.15;
+export const LIGHTNESS_WHITE = 0.93;
+
+export const CHROMA_GRAY = 0.04;
 
 export function safeOklch(
   r: number,
@@ -43,13 +44,20 @@ export function safeOklch(
   b: number,
 ): { l: number; c: number; h: number } | null {
   try {
-    const cResult = oklch({ mode: 'rgb', r, g, b });
+    const cResult = oklch({ mode: 'rgb', r, g, b } as any) as any;
+
     if (!cResult) return null;
-    const { l, c, h = 0 } = cResult;
+
+    const l = cResult.l as number;
+    const c = cResult.c as number;
+    const hRaw = cResult.h as number | undefined;
 
     if (typeof l !== 'number' || isNaN(l) || typeof c !== 'number' || isNaN(c))
       return null;
-    return { l, c, h: isNaN(h) ? 0 : h };
+
+    const h = typeof hRaw === 'number' && !isNaN(hRaw) ? hRaw : 0;
+
+    return { l, c, h };
   } catch {
     return null;
   }
@@ -68,20 +76,22 @@ export function classifyColor(
 
   const { l, c } = col;
 
+  if (c >= CHROMA_GRAY) {
+    const hue = (col.h || 0) % 360;
+
+    if (hue >= 15 && hue <= 90 && l < 0.45 && c < 0.15) {
+      return 'Brown';
+    }
+
+    const shiftedHue = (hue + HUE_BIN_WIDTH / 2) % 360;
+    const hueIndex = Math.floor(shiftedHue / HUE_BIN_WIDTH) % HUE_BINS;
+    return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
+  }
+
   if (l < LIGHTNESS_BLACK) return 'Black';
   if (l > LIGHTNESS_WHITE) return 'White';
 
-  if (c < CHROMA_GRAY) return 'Gray';
-
-  const hue = (col.h || 0) % 360;
-
-  if (hue >= 15 && hue <= 90 && l < 0.65 && c < 0.2) {
-    return 'Brown';
-  }
-
-  const shiftedHue = (hue + HUE_BIN_WIDTH / 2) % 360;
-  const hueIndex = Math.floor(shiftedHue / HUE_BIN_WIDTH) % HUE_BINS;
-  return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
+  return 'Gray';
 }
 
 export function hexToRgb(
@@ -126,45 +136,48 @@ export function createTargetVectorFromColor(hex: string): {
   const oklchColor = safeOklch(rgb.r / 255, rgb.g / 255, rgb.b / 255);
   if (!oklchColor) return { targetVector: vector, primaryBins: [] };
 
-  if (oklchColor.l < LIGHTNESS_BLACK) {
-    vector['Black'] = 0.6;
-    vector['Gray'] = 0.4;
+  const { l, c, h } = oklchColor;
+
+  if (c >= CHROMA_GRAY) {
+    const hue = (h ?? 0) % 360;
+
+    if (hue >= 15 && hue <= 90 && l < 0.45 && c < 0.15) {
+      vector['Brown'] = 1;
+      return { targetVector: vector, primaryBins: ['Brown'] };
+    }
+
+    const hueBinCount = CHROMATIC_BIN_NAMES.length;
+    const binWidth = 360 / hueBinCount;
+
+    const exactPos = hue / binWidth;
+    const bin1Idx = Math.floor(exactPos) % hueBinCount;
+    const bin2Idx = (bin1Idx + 1) % hueBinCount;
+
+    const ratio = exactPos - Math.floor(exactPos);
+
+    const bin1Name = CHROMATIC_BIN_NAMES[bin1Idx];
+    const bin2Name = CHROMATIC_BIN_NAMES[bin2Idx];
+
+    vector[bin1Name] = 1.0 - ratio;
+    vector[bin2Name] = ratio;
+
+    const primaryBins = ratio > 0.5 ? [bin2Name] : [bin1Name];
+    return { targetVector: vector, primaryBins };
+  }
+
+  if (l < LIGHTNESS_BLACK) {
+    vector['Black'] = 0.8;
+    vector['Gray'] = 0.2;
     return { targetVector: vector, primaryBins: ['Black'] };
   }
-  if (oklchColor.l > LIGHTNESS_WHITE) {
-    vector['White'] = 0.6;
-    vector['Gray'] = 0.4;
+  if (l > LIGHTNESS_WHITE) {
+    vector['White'] = 0.8;
+    vector['Gray'] = 0.2;
     return { targetVector: vector, primaryBins: ['White'] };
   }
-  if (oklchColor.c < CHROMA_GRAY) {
-    vector['Gray'] = 1;
-    return { targetVector: vector, primaryBins: ['Gray'] };
-  }
 
-  const hue = (oklchColor.h ?? 0) % 360;
-  if (hue >= 15 && hue <= 90 && oklchColor.l < 0.65 && oklchColor.c < 0.2) {
-    vector['Brown'] = 1;
-    return { targetVector: vector, primaryBins: ['Brown'] };
-  }
-
-  const hueBinCount = CHROMATIC_BIN_NAMES.length;
-  const binWidth = 360 / hueBinCount;
-
-  const exactPos = hue / binWidth;
-  const bin1Idx = Math.floor(exactPos) % hueBinCount;
-  const bin2Idx = (bin1Idx + 1) % hueBinCount;
-
-  const ratio = exactPos - Math.floor(exactPos);
-
-  const bin1Name = CHROMATIC_BIN_NAMES[bin1Idx];
-  const bin2Name = CHROMATIC_BIN_NAMES[bin2Idx];
-
-  vector[bin1Name] = 1.0 - ratio;
-  vector[bin2Name] = ratio;
-
-  const primaryBins = ratio > 0.5 ? [bin2Name] : [bin1Name];
-
-  return { targetVector: vector, primaryBins };
+  vector['Gray'] = 1;
+  return { targetVector: vector, primaryBins: ['Gray'] };
 }
 
 export function createTargetVectorFromColors(hexColors: string[]): {

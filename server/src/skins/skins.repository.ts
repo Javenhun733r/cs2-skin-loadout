@@ -73,36 +73,22 @@ export class SkinsRepository {
 
   async findAllLoadoutOptions(
     vectorString: string,
-    threshold: number = 0.8,
+    threshold: number = 0.85,
   ): Promise<SkinWithDistanceDto[]> {
     return safeRawArray<SkinWithDistanceDto>(
       this.prisma.$queryRaw(
         Prisma.sql`
           SELECT * FROM (
-            SELECT * FROM (
-              (
-                SELECT DISTINCT ON ("weapon")
-                  id, name, image, weapon, rarity, type, "dominantHex",
-                  histogram::text, 
-                  (histogram <=> ${vectorString}::vector) AS distance
-                FROM "Skin"
-                WHERE "type" = 'weapon' AND "weapon" IS NOT NULL AND "weapon" != ''
-                ORDER BY "weapon", distance ASC
-              )
-              UNION ALL
-              (
-                SELECT DISTINCT ON ("weapon")
-                  id, name, image, weapon, rarity, type, "dominantHex",
-                  histogram::text, 
-                  (histogram <=> ${vectorString}::vector) AS distance
-                FROM "Skin"
-                WHERE "type" IN ('knife', 'glove') AND "weapon" IS NOT NULL AND "weapon" != ''
-                ORDER BY "weapon", distance ASC
-              )
-            ) AS loadouts
+            SELECT 
+              id, name, image, weapon, rarity, type, "dominantHex",
+              histogram::text, 
+              (histogram <=> ${vectorString}::vector) AS distance
+            FROM "Skin"
+            WHERE "weapon" IS NOT NULL AND "weapon" != ''
           ) AS filtered
           WHERE distance < ${threshold}
-          ORDER BY distance ASC;
+          ORDER BY distance ASC
+          LIMIT 800; 
         `,
       ),
     );

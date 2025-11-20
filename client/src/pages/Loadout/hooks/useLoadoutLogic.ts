@@ -8,6 +8,7 @@ export type LoadoutMode = 'premium' | 'budget';
 export type Team = 'CT' | 'T';
 
 export interface CategorizedLoadout {
+	agent: SkinWithDistance | null;
 	pistols: SkinWithDistance[];
 	midTier: SkinWithDistance[];
 	rifles: SkinWithDistance[];
@@ -17,12 +18,11 @@ export interface CategorizedLoadout {
 
 export function useLoadoutLogic() {
 	const [searchParams, setSearchParams] = useSearchParams();
-
 	const [allSkins, setAllSkins] = useState<SkinWithDistance[]>([]);
-
 	const [team, setTeam] = useState<Team>('CT');
 
 	const [categorized, setCategorized] = useState<CategorizedLoadout>({
+		agent: null,
 		pistols: [],
 		midTier: [],
 		rifles: [],
@@ -76,6 +76,7 @@ export function useLoadoutLogic() {
 		currentTeam: Team
 	) => {
 		const newLoadout: CategorizedLoadout = {
+			agent: null,
 			pistols: [],
 			midTier: [],
 			rifles: [],
@@ -83,12 +84,28 @@ export function useLoadoutLogic() {
 			glove: null,
 		};
 
+		const availablePistols: SkinWithDistance[] = [];
+		const availableMidTier: SkinWithDistance[] = [];
+		const availableRifles: SkinWithDistance[] = [];
+
 		skins.forEach(skin => {
+			if (skin.type === 'agent') {
+				if (!newLoadout.agent && skin.weapon === currentTeam) {
+					newLoadout.agent = skin;
+				}
+				return;
+			}
+
 			if (skin.type === 'knife') {
 				if (!newLoadout.knife) newLoadout.knife = skin;
-			} else if (skin.type === 'glove') {
+				return;
+			}
+			if (skin.type === 'glove') {
 				if (!newLoadout.glove) newLoadout.glove = skin;
-			} else if (skin.weapon) {
+				return;
+			}
+
+			if (skin.weapon) {
 				const weaponName = skin.weapon.toLowerCase();
 
 				const weaponTeam = WEAPON_TEAMS[weaponName];
@@ -97,18 +114,34 @@ export function useLoadoutLogic() {
 				}
 
 				if (WEAPON_CATEGORIES.pistols.includes(weaponName)) {
-					newLoadout.pistols.push(skin);
+					availablePistols.push(skin);
 				} else if (WEAPON_CATEGORIES.midTier.includes(weaponName)) {
-					newLoadout.midTier.push(skin);
+					availableMidTier.push(skin);
 				} else if (WEAPON_CATEGORIES.rifles.includes(weaponName)) {
-					newLoadout.rifles.push(skin);
+					availableRifles.push(skin);
 				}
 			}
 		});
 
-		newLoadout.pistols = newLoadout.pistols.slice(0, 5);
-		newLoadout.midTier = newLoadout.midTier.slice(0, 5);
-		newLoadout.rifles = newLoadout.rifles.slice(0, 5);
+		const startingPistolNames =
+			currentTeam === 'CT' ? ['usp-s', 'p2000'] : ['glock-18'];
+
+		const startingCandidates = availablePistols.filter(
+			s => s.weapon && startingPistolNames.includes(s.weapon.toLowerCase())
+		);
+
+		const otherCandidates = availablePistols.filter(
+			s => s.weapon && !startingPistolNames.includes(s.weapon.toLowerCase())
+		);
+
+		const bestStartingPistol = startingCandidates[0];
+
+		newLoadout.pistols = [bestStartingPistol, ...otherCandidates]
+			.filter(Boolean)
+			.slice(0, 5);
+
+		newLoadout.midTier = availableMidTier.slice(0, 5);
+		newLoadout.rifles = availableRifles.slice(0, 5);
 
 		setCategorized(newLoadout);
 	};

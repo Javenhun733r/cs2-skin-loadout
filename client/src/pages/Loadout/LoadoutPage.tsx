@@ -4,6 +4,7 @@ import { Alert } from '../../components/ui/alert/Alert';
 import { SkinMarketModal } from '../../components/ui/modals/SkinMarketModal';
 import { PopoverPicker } from '../../components/ui/popover-picker/PopoverPicker';
 import { Spinner } from '../../components/ui/spinner/Spinner';
+import { getRarityColor } from '../../lib/utils';
 import { LoadoutDisplay } from './components/LoadoutDisplay';
 import { TeamToggle } from './components/TeamToggle';
 import { useLoadoutLogic } from './hooks/useLoadoutLogic';
@@ -125,10 +126,31 @@ export default function LoadoutPage() {
 			{!isLoading && hasItems && (
 				<div className='LoadoutGrid'>
 					<div className='SidePanel'>
-						<div className='AgentCard'>
-							<div className='AgentSilhouette'>👤</div>
-							<span>{team} Agent</span>
-						</div>
+						{categorized.agent ? (
+							<div
+								className='AgentCard'
+								onClick={() => handleCardClick(categorized.agent!)}
+								style={{ cursor: 'pointer' }}
+							>
+								<img
+									src={categorized.agent.image}
+									alt={categorized.agent.name}
+									className='AgentImage'
+								/>
+								<div className='AgentName'>{categorized.agent.name}</div>
+								<span
+									className='AgentRarity'
+									style={{ color: getRarityColor(categorized.agent.rarity) }}
+								>
+									{categorized.agent.rarity} Agent
+								</span>
+							</div>
+						) : (
+							<div className='AgentCard'>
+								<div className='AgentSilhouette'>👤</div>
+								<span>{team} Agent</span>
+							</div>
+						)}
 
 						<div className='EquipmentGrid'>
 							{categorized.knife ? (

@@ -80,6 +80,42 @@
 	position: relative;
 	overflow: hidden;
 	box-shadow: var(--shadow-sm);
+	transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.AgentCard:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.AgentImage {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	object-position: top center;
+	mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+	-webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+}
+
+.AgentName {
+	position: absolute;
+	bottom: 30px;
+	font-weight: 700;
+	font-size: 1.1rem;
+	text-align: center;
+	width: 100%;
+	text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+	z-index: 2;
+}
+
+.AgentRarity {
+	position: absolute;
+	bottom: 12px;
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	font-weight: 600;
+	opacity: 0.9;
+	z-index: 2;
 }
 
 .AgentSilhouette {

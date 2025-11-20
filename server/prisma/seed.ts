@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Prisma, PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import * as KMeans from 'ml-kmeans';
@@ -8,6 +9,7 @@ import {
   BIN_NAMES,
   classifyColor,
   createVectorString,
+  safeOklch,
   type ColorBin,
 } from '../src/utils/color.utils';
 
@@ -15,6 +17,8 @@ type Histogram = Record<ColorBin, number>;
 
 const SKINS_JSON_URL =
   'https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json';
+const AGENTS_JSON_URL =
+  'https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/agents.json';
 
 const prisma = new PrismaClient();
 const DB_BATCH_SIZE = 500;
@@ -36,6 +40,15 @@ interface RawSkinData {
   weapon: { id: string; weapon_id: number; name: string } | null;
   rarity: { id: string; name: string; color: string } | null;
   image: string;
+}
+
+interface RawAgentData {
+  id: string;
+  name: string;
+  description: string;
+  rarity: { id: string; name: string; color: string };
+  image: string;
+  team: { id: string; name: string };
 }
 
 interface SkinDataForRawInsert {
@@ -122,8 +135,8 @@ async function extractColorData(
         kernel: 'nearest',
       })
       .modulate({
-        brightness: CONFIG.BRIGHTNESS_BOOST,
-        saturation: CONFIG.SATURATION_BOOST,
+        saturation: 1.2,
+        brightness: 1.0,
       })
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -159,7 +172,7 @@ async function extractColorData(
 
     if (pixels.length > 0) {
       try {
-        const k = Math.min(4, pixels.length);
+        const k = 4;
         const result = KMeans.kmeans(pixels, k, {
           initialization: 'kmeans++',
         });
@@ -168,12 +181,47 @@ async function extractColorData(
           const counts = new Array(k).fill(0);
           for (const c of result.clusters) counts[c]++;
 
-          let maxIdx = 0;
-          for (let i = 1; i < k; i++) {
-            if (counts[i] > counts[maxIdx]) maxIdx = i;
+          const totalSampled = result.clusters.length;
+
+          let bestCentroidIdx = -1;
+          let maxScore = -1;
+
+          for (let i = 0; i < k; i++) {
+            const [r, g, b] = result.centroids[i] as [number, number, number];
+            const share = counts[i] / totalSampled;
+
+            if (share < 0.05) continue;
+
+            const oklch = safeOklch(r / 255, g / 255, b / 255);
+            const chroma = oklch?.c || 0;
+
+            let score = share * 1.0 + chroma * 3.0;
+
+            if (oklch && (oklch.l < 0.15 || oklch.l > 0.95)) {
+              score *= 0.5;
+            }
+
+            if (score > maxScore) {
+              maxScore = score;
+              bestCentroidIdx = i;
+            }
           }
 
-          const centroid = result.centroids[maxIdx];
+          if (bestCentroidIdx === -1) {
+            let maxCount = -1;
+            for (let i = 0; i < k; i++) {
+              if (counts[i] > maxCount) {
+                maxCount = counts[i];
+                bestCentroidIdx = i;
+              }
+            }
+          }
+
+          const centroid = result.centroids[bestCentroidIdx] as [
+            number,
+            number,
+            number,
+          ];
           dominantHex = rgbToHex(centroid[0], centroid[1], centroid[2]);
         }
       } catch (e) {
@@ -184,7 +232,6 @@ async function extractColorData(
     return { histogram, dominantHex };
   } catch (err) {
     logError(err, `Error processing ${imageUrl}`);
-
     const emptyHist = {} as Histogram;
     BIN_NAMES.forEach((b) => (emptyHist[b] = 0));
     return { histogram: emptyHist, dominantHex: '#808080' };
@@ -249,62 +296,114 @@ async function processSkin(skin: RawSkinData): Promise<SkinDataForRawInsert> {
   };
 }
 
+async function processAgent(
+  agent: RawAgentData,
+): Promise<SkinDataForRawInsert> {
+  const { histogram, dominantHex } = await extractColorData(agent.image);
+
+  const rarityName = agent.rarity?.name ?? '';
+  const histogramVector = createVectorString(histogram);
+
+  let teamCode = 'BOTH';
+  if (agent.team?.name === 'Counter-Terrorist') {
+    teamCode = 'CT';
+  } else if (agent.team?.name === 'Terrorist') {
+    teamCode = 'T';
+  }
+
+  return {
+    id: agent.id,
+    name: agent.name,
+    image: agent.image,
+
+    weapon: teamCode,
+    rarity: rarityName,
+    type: 'agent',
+    dominantHex,
+    histogramVector,
+  };
+}
+
 async function main(): Promise<void> {
   try {
     const skinCount = await prisma.skin.count();
     if (skinCount > 0) {
-      console.log(`Database already has ${skinCount} skins.`);
+      console.log(`Database currently has ${skinCount} items.`);
     }
 
     console.log('Starting seeding process...');
-    console.log(
-      `Config: Brightness ${CONFIG.BRIGHTNESS_BOOST}, Saturation ${CONFIG.SATURATION_BOOST}`,
-    );
 
-    const response = await axios.get<RawSkinData[]>(SKINS_JSON_URL, {
+    console.log('Fetching Skins...');
+    const skinsResponse = await axios.get<RawSkinData[]>(SKINS_JSON_URL, {
       timeout: 30000,
     });
-
-    if (!Array.isArray(response.data)) {
-      throw new Error('Invalid data format: expected array');
+    if (!Array.isArray(skinsResponse.data)) {
+      throw new Error('Invalid skins data format');
     }
+    const rawSkins = skinsResponse.data;
 
-    const rawSkins = response.data;
-    console.log(`Found ${rawSkins.length} skins to process...`);
+    console.log('Fetching Agents...');
+    const agentsResponse = await axios.get<RawAgentData[]>(AGENTS_JSON_URL, {
+      timeout: 30000,
+    });
+    if (!Array.isArray(agentsResponse.data)) {
+      throw new Error('Invalid agents data format');
+    }
+    const rawAgents = agentsResponse.data;
+
+    console.log(
+      `Found ${rawSkins.length} skins and ${rawAgents.length} agents.`,
+    );
 
     const limit = pLimit(CONCURRENT_DOWNLOADS);
     let processed = 0;
+    const totalItems = rawSkins.length + rawAgents.length;
 
-    const allSkinsData = await Promise.all(
-      rawSkins.map((skin) =>
-        limit(async () => {
-          const result = await processSkin(skin);
-          processed++;
-          if (processed % 50 === 0) {
-            console.log(
-              `Processing: ${processed}/${rawSkins.length} (${Math.round(
-                (processed / rawSkins.length) * 100,
-              )}%)`,
-            );
-          }
-          return result;
-        }),
-      ),
+    const skinPromises = rawSkins.map((skin) =>
+      limit(async () => {
+        const result = await processSkin(skin);
+        processed++;
+        if (processed % 50 === 0) {
+          console.log(
+            `Processing: ${processed}/${totalItems} (${Math.round(
+              (processed / totalItems) * 100,
+            )}%)`,
+          );
+        }
+        return result;
+      }),
     );
+
+    const agentPromises = rawAgents.map((agent) =>
+      limit(async () => {
+        const result = await processAgent(agent);
+        processed++;
+        if (processed % 50 === 0) {
+          console.log(
+            `Processing: ${processed}/${totalItems} (${Math.round(
+              (processed / totalItems) * 100,
+            )}%)`,
+          );
+        }
+        return result;
+      }),
+    );
+
+    const allData = await Promise.all([...skinPromises, ...agentPromises]);
 
     console.log('All images processed. Starting database upsert...');
 
-    for (let i = 0; i < allSkinsData.length; i += DB_BATCH_SIZE) {
-      const batch = allSkinsData.slice(i, i + DB_BATCH_SIZE);
+    for (let i = 0; i < allData.length; i += DB_BATCH_SIZE) {
+      const batch = allData.slice(i, i + DB_BATCH_SIZE);
 
       try {
         const values = Prisma.join(
           batch.map(
-            (skin) =>
-              Prisma.sql`(${skin.id}, ${skin.name}, ${skin.image}, ${
-                skin.weapon
-              }, ${skin.rarity}, ${skin.type}, ${skin.dominantHex}, ${
-                skin.histogramVector
+            (item) =>
+              Prisma.sql`(${item.id}, ${item.name}, ${item.image}, ${
+                item.weapon
+              }, ${item.rarity}, ${item.type}, ${item.dominantHex}, ${
+                item.histogramVector
               }::vector)`,
           ),
         );
@@ -315,21 +414,22 @@ async function main(): Promise<void> {
           ON CONFLICT (id) DO UPDATE SET
             "histogram" = EXCLUDED."histogram",
             "dominantHex" = EXCLUDED."dominantHex",
-            "type" = EXCLUDED."type";
+            "type" = EXCLUDED."type",
+            "weapon" = EXCLUDED."weapon";
         `;
 
         console.log(
           `Upserted ${Math.min(
             i + batch.length,
-            allSkinsData.length,
-          )} / ${allSkinsData.length} skins...`,
+            allData.length,
+          )} / ${allData.length} items...`,
         );
       } catch (err) {
         logError(err, `Error writing batch ${i / DB_BATCH_SIZE + 1}`);
       }
     }
 
-    console.log(`✓ Successfully processed ${allSkinsData.length} skins.`);
+    console.log(`✓ Successfully processed ${allData.length} items.`);
   } catch (err: unknown) {
     logError(err, 'Seeding error');
     throw err;
