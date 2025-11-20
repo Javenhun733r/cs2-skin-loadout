@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { SkinCard } from '../../components/skin-card/SkinCard';
 import { Alert } from '../../components/ui/alert/Alert';
+import { SkinMarketModal } from '../../components/ui/modals/SkinMarketModal';
 import { Spinner } from '../../components/ui/spinner/Spinner';
 import * as api from '../../lib/api';
-import type { SkinWithDistance } from '../../types/types';
+import type { Skin, SkinWithDistance } from '../../types/types';
 import './LoadoutPage.css';
 
 type LoadoutMode = 'premium' | 'budget';
@@ -72,6 +73,9 @@ export default function LoadoutPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
 
+	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
+	const [isModalOpen, setIsModalOpen] = useState(false);
+
 	const [colors, setColors] = useState<string[]>(() => {
 		const param = searchParams.get('colors');
 		if (param) {
@@ -101,6 +105,11 @@ export default function LoadoutPage() {
 		if (colors.length > 1) {
 			setColors(colors.filter((_, i) => i !== index));
 		}
+	};
+
+	const handleCardClick = (skin: Skin) => {
+		setModalSkin(skin);
+		setIsModalOpen(true);
 	};
 
 	useEffect(() => {
@@ -267,12 +276,18 @@ export default function LoadoutPage() {
 							<h4>Agent & Equipment</h4>
 							<div className='EquipmentGrid'>
 								{categorized.knife ? (
-									<SkinCard skin={categorized.knife} />
+									<SkinCard
+										skin={categorized.knife}
+										onClick={handleCardClick}
+									/>
 								) : (
 									<div className='EmptySlot'>No Knife</div>
 								)}
 								{categorized.glove ? (
-									<SkinCard skin={categorized.glove} />
+									<SkinCard
+										skin={categorized.glove}
+										onClick={handleCardClick}
+									/>
 								) : (
 									<div className='EmptySlot'>No Gloves</div>
 								)}
@@ -285,7 +300,11 @@ export default function LoadoutPage() {
 							<h3>Pistols</h3>
 							<div className='SlotList'>
 								{categorized.pistols.map(skin => (
-									<SkinCard key={skin.id} skin={skin} />
+									<SkinCard
+										key={skin.id}
+										skin={skin}
+										onClick={handleCardClick}
+									/>
 								))}
 								{[...Array(5 - categorized.pistols.length)].map((_, i) => (
 									<div key={`empty-p-${i}`} className='EmptySlot'>
@@ -299,7 +318,11 @@ export default function LoadoutPage() {
 							<h3>Mid-Tier</h3>
 							<div className='SlotList'>
 								{categorized.midTier.map(skin => (
-									<SkinCard key={skin.id} skin={skin} />
+									<SkinCard
+										key={skin.id}
+										skin={skin}
+										onClick={handleCardClick}
+									/>
 								))}
 								{[...Array(5 - categorized.midTier.length)].map((_, i) => (
 									<div key={`empty-m-${i}`} className='EmptySlot'>
@@ -313,7 +336,11 @@ export default function LoadoutPage() {
 							<h3>Rifles</h3>
 							<div className='SlotList'>
 								{categorized.rifles.map(skin => (
-									<SkinCard key={skin.id} skin={skin} />
+									<SkinCard
+										key={skin.id}
+										skin={skin}
+										onClick={handleCardClick}
+									/>
 								))}
 								{[...Array(5 - categorized.rifles.length)].map((_, i) => (
 									<div key={`empty-r-${i}`} className='EmptySlot'>
@@ -325,6 +352,12 @@ export default function LoadoutPage() {
 					</div>
 				</div>
 			)}
+
+			<SkinMarketModal
+				isOpen={isModalOpen}
+				onClose={() => setIsModalOpen(false)}
+				skin={modalSkin}
+			/>
 		</section>
 	);
 }

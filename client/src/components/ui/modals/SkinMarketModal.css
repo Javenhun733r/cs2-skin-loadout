@@ -1,0 +1,143 @@
+.ModalOverlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.75);
+	backdrop-filter: blur(5px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	animation: fadeIn 0.2s ease-out;
+}
+
+.ModalContent {
+	background-color: var(--color-surface);
+	width: 90%;
+	max-width: 500px;
+	border-radius: var(--radius);
+	position: relative;
+	box-shadow: var(--shadow-md);
+	animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+	overflow: hidden;
+	border: 1px solid var(--color-border);
+}
+
+.CloseButton {
+	position: absolute;
+	top: 15px;
+	right: 15px;
+	background: none;
+	border: none;
+	color: var(--color-text-secondary);
+	font-size: 20px;
+	cursor: pointer;
+	z-index: 2;
+	padding: 5px;
+	line-height: 1;
+}
+
+.CloseButton:hover {
+	color: var(--color-text-primary);
+}
+
+.ModalHeader {
+	padding: 20px 20px 0 20px;
+	text-align: center;
+}
+
+.ModalTitle {
+	margin: 0;
+	font-size: 1.5rem;
+	color: var(--color-text-primary);
+}
+
+.ModalSubtitle {
+	display: block;
+	margin-top: 5px;
+	color: var(--color-text-secondary);
+	font-size: 0.9rem;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+}
+
+.ModalBody {
+	padding: 20px;
+}
+
+.ModalImageContainer {
+	background: radial-gradient(
+		circle,
+		var(--color-border) 0%,
+		var(--color-surface) 70%
+	);
+	border-radius: var(--radius);
+	margin-bottom: 20px;
+	padding: 20px;
+	text-align: center;
+}
+
+.ModalImage {
+	width: 100%;
+	max-height: 250px;
+	object-fit: contain;
+	filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.2));
+}
+
+.MarketLinks h4 {
+	margin: 0 0 15px 0;
+	color: var(--color-text-secondary);
+	font-size: 0.9rem;
+	text-transform: uppercase;
+}
+
+.LinksGrid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 10px;
+}
+
+.MarketButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+	border-radius: 8px;
+	text-decoration: none;
+	color: var(--color-text-primary);
+	background-color: var(--color-background);
+	border: 1px solid var(--color-border);
+	font-weight: 600;
+	font-size: 0.9rem;
+	transition: all 0.2s ease;
+}
+
+.MarketButton:hover {
+	background-color: var(--btn-hover-color);
+	border-color: var(--btn-hover-color);
+	color: white;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes slideUp {
+	from {
+		transform: translateY(20px);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}

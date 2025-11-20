@@ -4,17 +4,17 @@ import { SkinCard } from '../../components/skin-card/SkinCard';
 import { SkinGrid } from '../../components/skin-grid/SkinGrid';
 import { Alert } from '../../components/ui/alert/Alert';
 import { Button } from '../../components/ui/button/Button';
+import { SkinMarketModal } from '../../components/ui/modals/SkinMarketModal';
 import { SearchInput } from '../../components/ui/search-input/SearchInput';
 import { Spinner } from '../../components/ui/spinner/Spinner';
 import { EmptyState } from '../../components/ui/states/EmptyState';
-import * as api from '../../lib/api';
-
 import { useSkinSearch } from '../../hooks/useSkinSearch';
-
+import * as api from '../../lib/api';
 import type { Skin, SkinWithDistance } from '../../types/types';
 import './HomePage.css';
 
 type SearchMode = 'premium' | 'budget';
+
 const HISTOGRAM_COLOR_MAP: Record<string, string> = {
 	histRed: '#ff4500',
 	histOrange: '#ffa500',
@@ -29,16 +29,17 @@ const HISTOGRAM_COLOR_MAP: Record<string, string> = {
 	histGray: '#808080',
 	histWhite: '#f5f5f5',
 };
+
 function HomePage() {
 	const [colors, setColors] = useState<string[]>(['#663399']);
-
 	const [selectedSkin, setSelectedSkin] = useState<Skin | null>(null);
 	const [similarSkins, setSimilarSkins] = useState<SkinWithDistance[]>([]);
-
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-
 	const [searchMode, setSearchMode] = useState<SearchMode>('premium');
+	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
+	const [isModalOpen, setIsModalOpen] = useState(false);
+
 	const navigate = useNavigate();
 
 	const {
@@ -66,6 +67,11 @@ function HomePage() {
 		if (colors.length > 1) {
 			setColors(colors.filter((_, i) => i !== index));
 		}
+	};
+
+	const handleCardClick = (skin: Skin) => {
+		setModalSkin(skin);
+		setIsModalOpen(true);
 	};
 
 	const findSimilarByColor = useCallback(
@@ -111,8 +117,11 @@ function HomePage() {
 		findSimilarByColor(colors);
 	};
 
-	const showEmptyState =
-		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
+	const handleSkinSelect = (skin: Skin) => {
+		clearSearch();
+		setSelectedSkin(skin);
+		findSimilarBySkin(skin.id);
+	};
 
 	const handleFindLoadout = () => {
 		let targetColors: string[] = [];
@@ -146,11 +155,9 @@ function HomePage() {
 		const colorsParam = targetColors.map(c => c.replace('#', '')).join(',');
 		navigate(`/loadout?colors=${colorsParam}&mode=${searchMode}`);
 	};
-	const handleSkinSelect = (skin: Skin) => {
-		clearSearch();
-		setSelectedSkin(skin);
-		findSimilarBySkin(skin.id);
-	};
+
+	const showEmptyState =
+		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
 
 	return (
 		<div>
@@ -276,7 +283,7 @@ function HomePage() {
 				{selectedSkin && (
 					<div className='SelectedSkinArea'>
 						<h3>Base Skin:</h3>
-						<SkinCard skin={selectedSkin} />
+						<SkinCard skin={selectedSkin} onClick={handleCardClick} />
 					</div>
 				)}
 
@@ -294,13 +301,19 @@ function HomePage() {
 						<h2 className='ResultsHeader'>Similar Skins</h2>
 						<SkinGrid>
 							{similarSkins.map(skin => (
-								<SkinCard key={skin.id} skin={skin} />
+								<SkinCard key={skin.id} skin={skin} onClick={handleCardClick} />
 							))}
 						</SkinGrid>
 					</section>
 				)}
 			</main>
+			<SkinMarketModal
+				isOpen={isModalOpen}
+				onClose={() => setIsModalOpen(false)}
+				skin={modalSkin}
+			/>
 		</div>
 	);
 }
+
 export default HomePage;
