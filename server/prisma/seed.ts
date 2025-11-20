@@ -27,7 +27,7 @@ const CONFIG = {
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,
   BRIGHTNESS_BOOST: 1.0,
-  SATURATION_BOOST: 1.1,
+  SATURATION_BOOST: 1.0,
 } as const;
 
 interface RawSkinData {
@@ -87,8 +87,13 @@ async function fetchWithRetry(url: string): Promise<Buffer> {
   }
 
   console.error(`fetchWithRetry FAILED for ${url}`);
-  // eslint-disable-next-line @typescript-eslint/only-throw-error
-  throw lastErr ?? new Error('Unknown fetch error');
+
+  if (lastErr instanceof Error) {
+    throw lastErr;
+  }
+  throw new Error(
+    typeof lastErr === 'string' ? lastErr : 'Unknown fetch error',
+  );
 }
 
 function rgbToHex(r: number, g: number, b: number) {
@@ -211,7 +216,14 @@ function determineSkinType(
     'stiletto',
     'talon',
     'ursus',
+    'kukri',
+    'classic',
+    'nomad',
+    'paracord',
+    'skeleton',
+    'survival',
   ];
+
   if (knifeKeywords.some((k) => name.includes(k))) return 'knife';
   if (name.includes('zeus')) return 'other';
 
@@ -240,16 +252,13 @@ async function processSkin(skin: RawSkinData): Promise<SkinDataForRawInsert> {
 async function main(): Promise<void> {
   try {
     const skinCount = await prisma.skin.count();
-
     if (skinCount > 0) {
-      console.log(`Database already has ${skinCount} skins. Seeding skipped.`);
-      console.log('To reseed, delete existing data first.');
-      return;
+      console.log(`Database already has ${skinCount} skins.`);
     }
 
-    console.log('Database empty. Starting seeding...');
+    console.log('Starting seeding process...');
     console.log(
-      `Using brightness boost: ${CONFIG.BRIGHTNESS_BOOST}x, saturation boost: ${CONFIG.SATURATION_BOOST}x`,
+      `Config: Brightness ${CONFIG.BRIGHTNESS_BOOST}, Saturation ${CONFIG.SATURATION_BOOST}`,
     );
 
     const response = await axios.get<RawSkinData[]>(SKINS_JSON_URL, {
@@ -283,7 +292,7 @@ async function main(): Promise<void> {
       ),
     );
 
-    console.log('All images processed. Starting database write...');
+    console.log('All images processed. Starting database upsert...');
 
     for (let i = 0; i < allSkinsData.length; i += DB_BATCH_SIZE) {
       const batch = allSkinsData.slice(i, i + DB_BATCH_SIZE);
@@ -303,21 +312,24 @@ async function main(): Promise<void> {
         await prisma.$executeRaw`
           INSERT INTO "Skin" (id, name, image, weapon, rarity, "type", "dominantHex", histogram)
           VALUES ${values}
-          ON CONFLICT (id) DO NOTHING;
+          ON CONFLICT (id) DO UPDATE SET
+            "histogram" = EXCLUDED."histogram",
+            "dominantHex" = EXCLUDED."dominantHex",
+            "type" = EXCLUDED."type";
         `;
 
         console.log(
-          `Written ${Math.min(
+          `Upserted ${Math.min(
             i + batch.length,
             allSkinsData.length,
-          )} / ${allSkinsData.length} skins to DB...`,
+          )} / ${allSkinsData.length} skins...`,
         );
       } catch (err) {
         logError(err, `Error writing batch ${i / DB_BATCH_SIZE + 1}`);
       }
     }
 
-    console.log(`✓ Successfully inserted ${allSkinsData.length} skins.`);
+    console.log(`✓ Successfully processed ${allSkinsData.length} skins.`);
   } catch (err: unknown) {
     logError(err, 'Seeding error');
     throw err;

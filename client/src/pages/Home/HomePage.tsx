@@ -15,7 +15,20 @@ import type { Skin, SkinWithDistance } from '../../types/types';
 import './HomePage.css';
 
 type SearchMode = 'premium' | 'budget';
-
+const HISTOGRAM_COLOR_MAP: Record<string, string> = {
+	histRed: '#ff4500',
+	histOrange: '#ffa500',
+	histYellow: '#ffd700',
+	histGreen: '#32cd32',
+	histCyan: '#00ced1',
+	histBlue: '#1e90ff',
+	histPurple: '#8a2be2',
+	histPink: '#ff69b4',
+	histBrown: '#8b4513',
+	histBlack: '#202020',
+	histGray: '#808080',
+	histWhite: '#f5f5f5',
+};
 function HomePage() {
 	const [colors, setColors] = useState<string[]>(['#663399']);
 
@@ -102,10 +115,37 @@ function HomePage() {
 		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
 
 	const handleFindLoadout = () => {
-		const targetHex = selectedSkin ? selectedSkin.dominantHex : colors[0];
-		navigate(`/loadout?color=${targetHex.replace('#', '')}&mode=${searchMode}`);
-	};
+		let targetColors: string[] = [];
 
+		if (selectedSkin) {
+			const histogramEntries = Object.entries(selectedSkin).filter(
+				([key]) => key.startsWith('hist') && HISTOGRAM_COLOR_MAP[key]
+			);
+
+			const sortedColors = histogramEntries.sort(
+				(a, b) => (b[1] as number) - (a[1] as number)
+			);
+
+			targetColors = sortedColors
+				.slice(0, 3)
+				.filter(([, value]) => (value as number) > 0.1)
+				.map(([key]) => HISTOGRAM_COLOR_MAP[key]);
+
+			if (targetColors.length === 0) {
+				targetColors = [selectedSkin.dominantHex];
+			}
+
+			if (!targetColors.includes(selectedSkin.dominantHex)) {
+				targetColors.unshift(selectedSkin.dominantHex);
+				targetColors = targetColors.slice(0, 3);
+			}
+		} else {
+			targetColors = colors;
+		}
+
+		const colorsParam = targetColors.map(c => c.replace('#', '')).join(',');
+		navigate(`/loadout?colors=${colorsParam}&mode=${searchMode}`);
+	};
 	const handleSkinSelect = (skin: Skin) => {
 		clearSearch();
 		setSelectedSkin(skin);

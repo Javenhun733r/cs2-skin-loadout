@@ -18,9 +18,14 @@ export function SkinCard({ skin, onClick }: SkinCardProps) {
 		<div
 			className='SkinCard'
 			onClick={handleClick}
-			style={{ borderTop: `4px solid ${rarityColor}` }}
+			style={{
+				borderBottom: `3px solid ${rarityColor}`,
+				background: `linear-gradient(to top, ${rarityColor}15, var(--color-surface) 60%)`,
+			}}
 		>
-			{formattedPrice && <div className='SkinCardPrice'>{formattedPrice}</div>}
+			{formattedPrice && (
+				<div className='SkinCardPrice'>{formattedPrice || 'N/A'}</div>
+			)}
 			<img src={skin.image} alt={skin.name} className='SkinCardImage' />
 			<p className='SkinCardName'>{skin.name}</p>
 			{skin.weapon && <span className='SkinCardWeapon'>{skin.weapon}</span>}

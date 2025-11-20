@@ -72,20 +72,48 @@ export default function LoadoutPage() {
 	const [error, setError] = useState<string | null>(null);
 	const [searchParams, setSearchParams] = useSearchParams();
 
-	const [color, setColor] = useState(searchParams.get('color') || '663399');
+	const [colors, setColors] = useState<string[]>(() => {
+		const param = searchParams.get('colors');
+		if (param) {
+			return param.split(',').map(c => `#${c}`);
+		}
+		const oldParam = searchParams.get('color');
+		return oldParam ? [`#${oldParam}`] : ['#663399'];
+	});
+
 	const [mode, setMode] = useState<LoadoutMode>(
 		(searchParams.get('mode') as LoadoutMode) || 'premium'
 	);
 
+	const handleColorChange = (index: number, newColor: string) => {
+		const newColors = [...colors];
+		newColors[index] = newColor;
+		setColors(newColors);
+	};
+
+	const addColor = () => {
+		if (colors.length < 3) {
+			setColors([...colors, '#FFFFFF']);
+		}
+	};
+
+	const removeColor = (index: number) => {
+		if (colors.length > 1) {
+			setColors(colors.filter((_, i) => i !== index));
+		}
+	};
+
 	useEffect(() => {
-		if (!color) return;
-		setSearchParams({ color, mode });
+		if (colors.length === 0) return;
+
+		const colorsParam = colors.map(c => c.replace('#', '')).join(',');
+		setSearchParams({ colors: colorsParam, mode });
 
 		const loadData = async () => {
 			setIsLoading(true);
 			setError(null);
 			try {
-				const data = await api.fetchLoadout(color, mode);
+				const data = await api.fetchLoadout(colors, mode);
 				processLoadoutData(data);
 			} catch (err) {
 				setError((err as Error).message);
@@ -94,8 +122,9 @@ export default function LoadoutPage() {
 			}
 		};
 
-		loadData();
-	}, [color, mode, setSearchParams]);
+		const timer = setTimeout(loadData, 500);
+		return () => clearTimeout(timer);
+	}, [colors, mode, setSearchParams]);
 
 	const processLoadoutData = (skins: SkinWithDistance[]) => {
 		const newLoadout: CategorizedLoadout = {
@@ -146,12 +175,64 @@ export default function LoadoutPage() {
 				</Link>
 				<h2>CS2 Loadout Builder</h2>
 				<div className='HeaderControls'>
-					<input
-						type='color'
-						className='ColorPicker'
-						value={`#${color}`}
-						onChange={e => setColor(e.target.value.replace('#', ''))}
-					/>
+					<div
+						className='ColorsContainer'
+						style={{ display: 'flex', gap: '8px', alignItems: 'center' }}
+					>
+						{colors.map((color, index) => (
+							<div
+								key={index}
+								style={{
+									display: 'flex',
+									flexDirection: 'column',
+									gap: '2px',
+								}}
+							>
+								<input
+									type='color'
+									className='ColorPicker'
+									value={color}
+									onChange={e => handleColorChange(index, e.target.value)}
+								/>
+								{colors.length > 1 && (
+									<button
+										onClick={() => removeColor(index)}
+										style={{
+											fontSize: '10px',
+											border: 'none',
+											background: 'transparent',
+											color: 'var(--color-error-text)',
+											cursor: 'pointer',
+										}}
+									>
+										✕
+									</button>
+								)}
+							</div>
+						))}
+
+						{colors.length < 3 && (
+							<button
+								onClick={addColor}
+								className='AddColorBtn'
+								style={{
+									width: '30px',
+									height: '30px',
+									borderRadius: '50%',
+									border: '1px dashed var(--color-border)',
+									background: 'transparent',
+									cursor: 'pointer',
+									color: 'var(--color-text-secondary)',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									fontSize: '20px',
+								}}
+							>
+								+
+							</button>
+						)}
+					</div>
 					<div className='ModeToggleCompact'>
 						<button
 							className={`ModeButton ${mode === 'premium' ? 'active' : ''}`}

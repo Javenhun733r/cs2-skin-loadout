@@ -3,9 +3,11 @@ import { PricingService } from '../pricing/pricing.service';
 import {
   BIN_NAMES,
   CHROMATIC_BIN_NAMES,
+  createVectorString,
   hexToRgb,
   safeOklch,
   TOTAL_BINS,
+  type ColorBin as UtilsColorBin,
 } from '../utils/color.utils';
 import { FindLoadoutDto } from './dto/find-loadout.dto';
 import { FindSimilarDto, FindSkinsDto } from './dto/find-skins.dto';
@@ -18,8 +20,8 @@ import {
 import { SkinsRepository } from './skins.repository';
 
 const LIGHTNESS_BLACK = 0.15;
-const LIGHTNESS_WHITE = 0.95;
-const CHROMA_GRAY = 0.03;
+const LIGHTNESS_WHITE = 0.92;
+const CHROMA_GRAY = 0.08;
 
 @Injectable()
 export class SkinsService {
@@ -33,18 +35,16 @@ export class SkinsService {
       try {
         const parsed: unknown[] = JSON.parse(skin.histogram) as unknown[];
         parsed.forEach((value, i) => {
-          (skin as Record<string, number>)[`hist${i}`] =
-            typeof value === 'number' && !isNaN(value) ? value : 0;
+          const binName = BIN_NAMES[i];
+          if (binName) {
+            (skin as Record<string, number>)[`hist${binName}`] =
+              typeof value === 'number' && !isNaN(value) ? value : 0;
+          }
         });
       } catch {
-        for (let i = 0; i < TOTAL_BINS; i++)
-          (skin as Record<string, number>)[`hist${i}`] = 0;
-      }
-    } else {
-      for (let i = 0; i < TOTAL_BINS; i++) {
-        const val = (skin as Record<string, number>)[`hist${i}`];
-        (skin as Record<string, number>)[`hist${i}`] =
-          typeof val === 'number' && !isNaN(val) ? val : 0;
+        BIN_NAMES.forEach((bin) => {
+          (skin as Record<string, number>)[`hist${bin}`] = 0;
+        });
       }
     }
     return skin;
@@ -54,20 +54,16 @@ export class SkinsService {
     const vector: Histogram = {} as Histogram;
     for (let i = 0; i < TOTAL_BINS; i++) {
       const binName = BIN_NAMES[i];
-      const key = `hist${i}`;
-      const val = (skin as Record<string, unknown>)[key];
+
+      let val = (skin as Record<string, unknown>)[`hist${binName}`];
+
+      if (val === undefined) {
+        val = (skin as Record<string, unknown>)[`hist${i}`];
+      }
+
       vector[binName] = typeof val === 'number' && !isNaN(val) ? val : 0;
     }
     return vector;
-  }
-
-  private sanitizeVector(vector: Histogram): Histogram {
-    const safeVector: Histogram = {} as Histogram;
-    for (const bin of BIN_NAMES) {
-      const val = vector[bin];
-      safeVector[bin] = typeof val === 'number' && !isNaN(val) ? val : 0;
-    }
-    return safeVector;
   }
 
   async findSimilarSkinsBySkinId(
@@ -77,17 +73,22 @@ export class SkinsService {
     const targetSkin = await this.skinsRepository.findById(skinId);
     if (!targetSkin) throw new NotFoundException('Target skin not found');
 
-    const rawVector = this.extractHistogramVector(targetSkin);
-    const targetVector = this.sanitizeVector(rawVector);
+    const parsedTarget = this.parseHistogramFromSkin(targetSkin);
+    const rawVector = this.extractHistogramVector(parsedTarget);
+
+    const vectorString = createVectorString(
+      rawVector as unknown as Record<UtilsColorBin, number>,
+    );
 
     const mode = dto.mode || 'premium';
     const userLimit = dto.limit || 20;
+
     const searchPoolLimit = mode === 'budget' ? 100 : userLimit;
 
-    const skinsFromRepo = await this.skinsRepository.findByHistogram({
-      targetVector,
-      limit: searchPoolLimit,
-    });
+    const skinsFromRepo = await this.skinsRepository.findByVector(
+      vectorString,
+      searchPoolLimit,
+    );
 
     const skinsWithPrices: SkinResponseDto[] = skinsFromRepo.map((skin) => ({
       ...this.parseHistogramFromSkin(skin),
@@ -98,6 +99,7 @@ export class SkinsService {
       const getSortScore = (skin: SkinResponseDto) => {
         const price = skin.price?.min || 5000;
         const distance = 1 - (skin.distance || 0);
+
         return distance * Math.pow(price, 0.4);
       };
       return skinsWithPrices
@@ -110,12 +112,14 @@ export class SkinsService {
 
   async findSkinsByColors(dto: FindSkinsDto): Promise<SkinResponseDto[]> {
     const { targetVector } = this.createTargetVectorFromColors(dto.colors);
-    const sanitizedVector = this.sanitizeVector(targetVector);
+    const vectorString = createVectorString(
+      targetVector as unknown as Record<UtilsColorBin, number>,
+    );
 
-    const skinsFromRepo = await this.skinsRepository.findByHistogram({
-      targetVector: sanitizedVector,
-      limit: dto.limit || 20,
-    });
+    const skinsFromRepo = await this.skinsRepository.findByVector(
+      vectorString,
+      dto.limit || 20,
+    );
 
     return skinsFromRepo.map((skin) => ({
       ...this.parseHistogramFromSkin(skin),
@@ -135,14 +139,15 @@ export class SkinsService {
   }
 
   async findLoadoutByColor(dto: FindLoadoutDto): Promise<SkinResponseDto[]> {
-    const { targetVector } = this.createTargetVectorFromColor(dto.color);
-    const sanitizedVector = this.sanitizeVector(targetVector);
+    const { targetVector } = this.createTargetVectorFromColors(dto.colors);
+    const vectorString = createVectorString(
+      targetVector as unknown as Record<UtilsColorBin, number>,
+    );
 
-    const skinsFromRepo =
-      await this.skinsRepository.findAllLoadoutOptionsByColor({
-        targetVector: sanitizedVector,
-        threshold: dto.threshold,
-      });
+    const skinsFromRepo = await this.skinsRepository.findAllLoadoutOptions(
+      vectorString,
+      dto.threshold,
+    );
 
     return skinsFromRepo.map((skin) => ({
       ...this.parseHistogramFromSkin(skin),
@@ -163,7 +168,6 @@ export class SkinsService {
     }
 
     const oklchColor = safeOklch(rgb.r / 255, rgb.g / 255, rgb.b / 255);
-
     if (!oklchColor) return { targetVector: vector, primaryBins: [] };
 
     if (oklchColor.l < LIGHTNESS_BLACK) {
@@ -182,7 +186,7 @@ export class SkinsService {
     }
 
     const hue = (oklchColor.h ?? 0) % 360;
-    if (hue >= 20 && hue <= 75 && oklchColor.l < 0.55 && oklchColor.c < 0.15) {
+    if (hue >= 15 && hue <= 90 && oklchColor.l < 0.65 && oklchColor.c < 0.2) {
       vector['Brown'] = 1;
       return { targetVector: vector, primaryBins: ['Brown'] };
     }

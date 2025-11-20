@@ -59,12 +59,13 @@ export async function findSimilarSkinsBySkinId(
 }
 
 export async function fetchLoadout(
-	color: string,
+	colors: string[] | string,
 	mode: 'premium' | 'budget' = 'premium'
 ): Promise<SkinWithDistance[]> {
-	const hex = color.replace('#', '');
+	const colorsArray = Array.isArray(colors) ? colors : [colors];
+	const hexColors = colorsArray.map(c => c.replace('#', '')).join(',');
 
-	const params = new URLSearchParams({ color: hex, mode: mode });
+	const params = new URLSearchParams({ colors: hexColors, mode: mode });
 
 	const response = await fetch(`${API_URL}/skins/loadout?${params}`);
 	return handleResponse<SkinWithDistance[]>(response);
