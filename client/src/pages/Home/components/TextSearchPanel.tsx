@@ -1,50 +1,55 @@
-import { Alert } from '../../../components/ui/alert/Alert';
+import type { KeyboardEvent } from 'react';
 import { SearchInput } from '../../../components/ui/search-input/SearchInput';
-import { Spinner } from '../../../components/ui/spinner/Spinner';
 import type { Skin } from '../../../types/types';
 
 interface TextSearchPanelProps {
-	searchQuery: string;
-	setSearchQuery: (query: string) => void;
-	clearSearch: () => void;
-	isLoading: boolean;
-	results: Skin[];
-	onSelectSkin: (skin: Skin) => void;
-	error: string | null;
+	query: string;
+	onQueryChange: (val: string) => void;
+	suggestions: Skin[];
+	onSelectSuggestion: (skin: Skin) => void;
+	onSearch: (query: string) => void;
 }
 
 export function TextSearchPanel({
-	searchQuery,
-	setSearchQuery,
-	clearSearch,
-	isLoading,
-	results,
-	onSelectSkin,
-	error,
+	query,
+	onQueryChange,
+	suggestions,
+	onSelectSuggestion,
+	onSearch,
 }: TextSearchPanelProps) {
+	const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+		if (e.key === 'Enter') {
+			if (suggestions.length > 0) {
+				onSelectSuggestion(suggestions[0]);
+			} else {
+				onSearch(query);
+			}
+		}
+	};
+
 	return (
 		<div className='SearchBox'>
 			<label htmlFor='search-input' className='SearchLabel'>
 				Find skins by item name:
 			</label>
-			<div className='SearchContainer'>
+			<div className='SearchContainer' style={{ position: 'relative' }}>
 				<SearchInput
 					id='search-input'
-					placeholder='e.g., Asiimov, Case Hardened...'
-					value={searchQuery}
-					onChange={e => setSearchQuery(e.target.value)}
-					onClear={clearSearch}
+					placeholder='Type skin name (e.g. Asiimov)'
+					value={query}
+					onChange={e => onQueryChange(e.target.value)}
+					onClear={() => onQueryChange('')}
+					onKeyDown={handleKeyDown}
+					autoComplete='off'
 				/>
 
-				{isLoading && <Spinner />}
-
-				{results.length > 0 && (
+				{suggestions.length > 0 && (
 					<div className='SearchResults'>
-						{results.map(skin => (
+						{suggestions.map(skin => (
 							<div
 								key={skin.id}
 								className='SearchResultItem'
-								onClick={() => onSelectSkin(skin)}
+								onClick={() => onSelectSuggestion(skin)}
 							>
 								<img
 									src={skin.image}
@@ -57,7 +62,6 @@ export function TextSearchPanel({
 					</div>
 				)}
 			</div>
-			{error && <Alert type='error'>{error}</Alert>}
 		</div>
 	);
 }

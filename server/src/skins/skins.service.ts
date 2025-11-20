@@ -73,6 +73,7 @@ export class SkinsService {
   async findSimilarSkinsBySkinId(
     skinId: string,
     dto: FindSimilarDto,
+    page: number = 1,
   ): Promise<SkinResponseDto[]> {
     const targetSkin = await this.skinsRepository.findById(skinId);
     if (!targetSkin) throw new NotFoundException('Target skin not found');
@@ -86,12 +87,14 @@ export class SkinsService {
 
     const mode = dto.mode || 'premium';
     const requestedLimit = dto.limit || 20;
-
     const searchPoolLimit = requestedLimit * 5;
+
+    const offset = (page - 1) * searchPoolLimit;
 
     const skinsFromRepo = await this.skinsRepository.findByVector(
       vectorString,
       searchPoolLimit,
+      offset,
     );
 
     const skinsWithPrices: SkinResponseDto[] = skinsFromRepo.map((skin) => ({
@@ -107,18 +110,22 @@ export class SkinsService {
       .slice(0, requestedLimit);
   }
 
-  async findSkinsByColors(dto: FindSkinsDto): Promise<SkinResponseDto[]> {
+  async findSkinsByColors(
+    dto: FindSkinsDto,
+    page: number = 1,
+  ): Promise<SkinResponseDto[]> {
     const { targetVector } = createTargetVectorFromColors(dto.colors);
     const vectorString = createVectorString(
       targetVector as unknown as Record<UtilsColorBin, number>,
     );
 
     const limit = dto.limit || 20;
-    const searchLimit = limit * 5;
+    const offset = (page - 1) * limit;
 
     const skinsFromRepo = await this.skinsRepository.findByVector(
       vectorString,
-      searchLimit,
+      limit,
+      offset,
     );
 
     const result = skinsFromRepo.map((skin) => ({
@@ -126,20 +133,20 @@ export class SkinsService {
       price: this.pricingService.getPriceByName(skin.name),
     }));
 
-    const mode = dto.mode || 'premium';
-
-    return result
-      .sort(
-        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
-      )
-      .slice(0, limit);
+    return result;
   }
 
   async searchSkinsByName(
     name: string,
     limit: number,
+    page: number = 1,
   ): Promise<SkinResponseDto[]> {
-    const skinsFromRepo = await this.skinsRepository.findByName(name, limit);
+    const offset = (page - 1) * limit;
+    const skinsFromRepo = await this.skinsRepository.findByName(
+      name,
+      limit,
+      offset,
+    );
     return skinsFromRepo.map((skin) => ({
       ...this.parseHistogramFromSkin(skin),
       price: this.pricingService.getPriceByName(skin.name),

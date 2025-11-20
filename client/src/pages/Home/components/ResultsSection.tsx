@@ -21,10 +21,7 @@ export function ResultsSection({
 	selectedSkin,
 	onCardClick,
 }: ResultsSectionProps) {
-	const showEmptyState =
-		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
-
-	if (isLoading) {
+	if (isLoading && similarSkins.length === 0) {
 		return (
 			<section>
 				<h2 className='ResultsHeader'>Searching...</h2>
@@ -40,6 +37,9 @@ export function ResultsSection({
 	if (error) {
 		return <Alert type='error'>{error}</Alert>;
 	}
+
+	const showEmptyState =
+		!isLoading && !error && similarSkins.length === 0 && !selectedSkin;
 
 	if (showEmptyState) {
 		return (
@@ -57,10 +57,10 @@ export function ResultsSection({
 				<SkinGrid>
 					{similarSkins.map((skin, index) => (
 						<motion.div
-							key={skin.id}
+							key={`${skin.id}-${index}`}
 							initial={{ opacity: 0, y: 20 }}
 							animate={{ opacity: 1, y: 0 }}
-							transition={{ duration: 0.3, delay: index * 0.05 }}
+							transition={{ duration: 0.3, delay: (index % 20) * 0.05 }}
 						>
 							<SkinCard skin={skin} onClick={onCardClick} />
 						</motion.div>

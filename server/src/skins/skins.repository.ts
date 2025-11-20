@@ -56,6 +56,7 @@ export class SkinsRepository {
   async findByVector(
     vectorString: string,
     limit: number,
+    offset: number = 0,
   ): Promise<SkinWithDistanceDto[]> {
     return safeRawArray<SkinWithDistanceDto>(
       this.prisma.$queryRaw(
@@ -65,7 +66,7 @@ export class SkinsRepository {
                  (histogram <=> ${vectorString}::vector) AS distance
           FROM "Skin"
           ORDER BY distance ASC
-          LIMIT ${limit};
+          LIMIT ${limit} OFFSET ${offset}; 
         `,
       ),
     );
@@ -94,7 +95,11 @@ export class SkinsRepository {
     );
   }
 
-  async findByName(name: string, limit: number): Promise<SkinDto[]> {
+  async findByName(
+    name: string,
+    limit: number,
+    offset: number = 0,
+  ): Promise<SkinDto[]> {
     const searchTerms = name.split(' ').filter(Boolean);
     if (searchTerms.length === 0) return [];
 
@@ -109,7 +114,7 @@ export class SkinsRepository {
           SELECT id, name, image, weapon, rarity, type, "dominantHex", histogram::text
           FROM "Skin"
           WHERE ${whereSql}
-          LIMIT ${limit};
+          LIMIT ${limit} OFFSET ${offset}; 
         `,
       ),
     );
