@@ -7,45 +7,62 @@
 
 .SearchIcon {
 	position: absolute;
-	left: 12px;
+	left: 16px;
 	color: var(--color-text-secondary);
 	pointer-events: none;
 	font-size: 1.2rem;
 	z-index: 1;
+	transition: color 0.2s ease;
 }
 
 .SearchInput {
 	width: 100%;
+	padding: 14px 40px 14px 48px;
+	font-size: 1rem;
 
-	padding: 10px 35px 10px 40px;
-	font-size: 16px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius);
-	background-color: var(--color-surface);
+	background-color: rgba(0, 0, 0, 0.2);
+	border: 1px solid var(--glass-border);
+	border-radius: 14px;
 	color: var(--color-text-primary);
-	transition: background-color 0.2s ease, color 0.2s ease,
-		border-color 0.2s ease;
+
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.SearchInput::placeholder {
+	color: var(--color-text-secondary);
+	opacity: 0.7;
 }
 
 .SearchInput:focus {
-	border-color: var(--color-primary);
 	outline: none;
+	border-color: var(--color-primary);
+	background-color: rgba(0, 0, 0, 0.3);
+	box-shadow: 0 0 0 4px rgba(75, 105, 255, 0.15);
+}
+
+.SearchInput:focus + .SearchIcon,
+.SearchInputWrapper:focus-within .SearchIcon {
+	color: var(--color-primary);
 }
 
 .ClearButton {
 	position: absolute;
-	right: 10px;
-	background: none;
+	right: 12px;
+	width: 24px;
+	height: 24px;
+	background: rgba(255, 255, 255, 0.1);
 	border: none;
+	border-radius: 50%;
 	cursor: pointer;
 	color: var(--color-text-secondary);
-	padding: 5px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	transition: color 0.2s;
+	transition: all 0.2s ease;
+	font-size: 12px;
 }
 
 .ClearButton:hover {
+	background: rgba(255, 255, 255, 0.2);
 	color: var(--color-text-primary);
 }

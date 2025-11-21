@@ -4,6 +4,8 @@
 	gap: 32px;
 	margin: 2rem auto 4rem;
 	max-width: 900px;
+	position: relative;
+	z-index: 1;
 }
 
 @media (min-width: 768px) {
@@ -15,14 +17,30 @@
 
 .SearchBox {
 	flex: 1;
-	background: var(--color-surface);
+	background: var(--glass-bg);
+	backdrop-filter: var(--backdrop-blur);
+	-webkit-backdrop-filter: var(--backdrop-blur);
+	border: 1px solid var(--glass-border);
+	box-shadow: var(--glass-shadow);
+	border-radius: 24px;
 	padding: 32px;
-	border-radius: 16px;
-	border: 1px solid var(--color-border);
-	box-shadow: var(--shadow-sm);
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
+	transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.SearchBox:hover {
+	border-color: rgba(75, 105, 255, 0.3);
+	box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.3),
+		0 0 0 1px rgba(75, 105, 255, 0.1);
+	transform: translateY(-2px);
+}
+.SearchLabel {
+	display: block;
+	font-weight: 600;
+	margin-bottom: 1rem;
+	color: var(--color-text-primary);
+	letter-spacing: -0.01em;
 }
 
 .Divider {
@@ -31,8 +49,10 @@
 	justify-content: center;
 	font-weight: 700;
 	color: var(--color-text-secondary);
-	font-size: 0.9rem;
-	position: relative;
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	opacity: 0.6;
 }
 
 .Divider::before,
@@ -63,10 +83,10 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	background: var(--color-background);
+	background: rgba(0, 0, 0, 0.2);
 	padding: 6px;
-	border-radius: 12px;
-	border: 1px solid var(--color-border);
+	border-radius: 14px;
+	border: 1px solid var(--glass-border);
 }
 
 .picker {
@@ -100,13 +120,6 @@
 }
 .SearchContainer {
 	position: relative;
-}
-
-.SearchLabel {
-	display: block;
-	font-weight: 500;
-	margin-bottom: 0.75rem;
-	color: var(--color-text-primary);
 }
 
 .SearchResults {
@@ -177,11 +190,12 @@
 
 .ResultsHeader {
 	text-align: left;
-	font-size: 1.5rem;
-	margin-bottom: 1.5rem;
-	border-bottom: none;
+	font-size: 1.75rem;
+	font-weight: 700;
+	margin-bottom: 2rem;
+	padding-left: 20px;
 	position: relative;
-	padding-left: 15px;
+	color: var(--color-text-primary);
 }
 .ResultsHeader::before {
 	content: '';
@@ -189,10 +203,15 @@
 	left: 0;
 	top: 50%;
 	transform: translateY(-50%);
-	height: 24px;
-	width: 4px;
-	background: var(--color-primary);
-	border-radius: 2px;
+	height: 32px;
+	width: 6px;
+	background: linear-gradient(
+		to bottom,
+		var(--color-primary),
+		var(--color-primary-dark)
+	);
+	border-radius: 4px;
+	box-shadow: 0 0 15px var(--color-primary);
 }
 
 .ErrorText {
@@ -201,37 +220,43 @@
 }
 .ModeToggle {
 	display: flex;
-	gap: 8px;
-	margin-bottom: 2rem;
-	border-radius: var(--radius);
-	overflow: hidden;
-	border: 1px solid var(--color-border);
+	background: rgba(0, 0, 0, 0.2);
+	padding: 4px;
+	border-radius: 16px;
+	border: 1px solid var(--glass-border);
+	margin-top: 24px;
+	position: relative;
 }
 
 .ModeButton {
 	flex: 1;
-	padding: 10px;
-	font-size: 14px;
+	padding: 12px;
+	font-size: 0.9rem;
 	font-weight: 600;
 	border: none;
-	background-color: var(--color-surface);
+	background: transparent;
 	color: var(--color-text-secondary);
 	cursor: pointer;
-	transition: all 0.2s ease;
+	border-radius: 12px;
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+	position: relative;
+	z-index: 1;
 }
 
 .ModeButton.active {
-	background-color: var(--color-primary);
-	color: var(--color-white);
+	background: var(--color-surface);
+	color: var(--color-text-primary);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .ModeButton:not(.active):hover {
-	background-color: var(--color-background);
+	color: var(--color-text-primary);
+	background: rgba(255, 255, 255, 0.05);
 }
 .AddColorButton {
-	width: 40px;
-	height: 40px;
-	border-radius: 10px;
+	width: 44px;
+	height: 44px;
+	border-radius: 12px;
 	border: 2px dashed var(--color-border);
 	background: transparent;
 	color: var(--color-text-secondary);
@@ -246,25 +271,26 @@
 .AddColorButton:hover {
 	border-color: var(--color-primary);
 	color: var(--color-primary);
-	background-color: rgba(75, 105, 255, 0.05);
+	background: rgba(75, 105, 255, 0.1);
 }
+
 .RemoveColorButton {
 	width: 24px;
 	height: 24px;
-	border-radius: 50%;
+	border-radius: 8px;
 	border: none;
-	background-color: rgba(255, 69, 58, 0.1);
+	background: rgba(255, 255, 255, 0.1);
 	color: #ff453a;
 	cursor: pointer;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
+	font-size: 14px;
 	transition: all 0.2s ease;
 }
 
 .RemoveColorButton:hover {
-	background-color: #ff453a;
+	background: #ff453a;
 	color: white;
 }
 .popover {

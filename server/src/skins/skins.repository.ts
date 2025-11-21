@@ -79,18 +79,18 @@ export class SkinsRepository {
     return safeRawArray<SkinWithDistanceDto>(
       this.prisma.$queryRaw(
         Prisma.sql`
-          SELECT * FROM (
-            SELECT 
-              id, name, image, weapon, rarity, type, "dominantHex",
-              histogram::text, 
-              (histogram <=> ${vectorString}::vector) AS distance
-            FROM "Skin"
-            WHERE "weapon" IS NOT NULL AND "weapon" != ''
-          ) AS filtered
-          WHERE distance < ${threshold}
-          ORDER BY distance ASC
-          LIMIT 800; 
-        `,
+        SELECT * FROM (
+          SELECT 
+            id, name, image, weapon, rarity, type, "dominantHex",
+            histogram::text, 
+            (histogram <=> ${vectorString}::vector) AS distance
+          FROM "Skin"
+          WHERE "weapon" IS NOT NULL AND "weapon" != ''
+        ) AS filtered
+        WHERE distance < ${threshold}
+        ORDER BY distance ASC
+        LIMIT 800;
+      `,
       ),
     );
   }

@@ -2,18 +2,16 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 
-// 1. Оновлюємо типи, щоб вони відповідали масиву об'єктів
 interface PriceItem {
   name: string;
   price: number;
-  // (тут можуть бути й інші поля, як 'have', 'max', але нам потрібні лише ці)
 }
-type PriceCache = PriceItem[]; // Тепер це масив!
+type PriceCache = PriceItem[];
 
 @Injectable()
 export class PricingService implements OnModuleInit {
   private readonly logger = new Logger(PricingService.name);
-  private priceCache: PriceCache = []; // Початковий стан - порожній масив
+  private priceCache: PriceCache = [];
   private readonly LOOT_FARM_URL = 'https://loot.farm/fullprice.json';
 
   constructor(private readonly httpService: HttpService) {}
@@ -34,7 +32,6 @@ export class PricingService implements OnModuleInit {
   private async fetchAndCachePrices() {
     this.logger.log('Updating price cache...');
     try {
-      // 2. Очікуємо масив PriceItem[]
       const response = await firstValueFrom(
         this.httpService.get<PriceItem[]>(this.LOOT_FARM_URL),
       );
@@ -43,7 +40,7 @@ export class PricingService implements OnModuleInit {
         this.priceCache = response.data;
         this.logger.log(
           `Price cache successfully updated. Loaded ${
-            response.data.length // 3. Використовуємо .length для масиву
+            response.data.length
           } items.`,
         );
       }
@@ -62,17 +59,14 @@ export class PricingService implements OnModuleInit {
     }
   }
 
-  /**
-   * Миттєво отримує МІНІМАЛЬНУ та МАКСИМАЛЬНУ ціну для предмета з кешу
-   * @param baseName Базова назва предмета (напр. "AK-47 | Redline")
-   * @returns Об'єкт {min, max} або null, якщо не знайдено
-   */
   public getPriceByName(baseName: string): { min: number; max: number } | null {
-    // 4. Повністю нова логіка пошуку для масиву
-    // Фільтруємо масив, шукаючи відповідності
-    const matchingItems = this.priceCache.filter((item) =>
-      item.name.startsWith(baseName),
-    );
+    const cleanBaseName = baseName.replace('★', '').trim();
+
+    const matchingItems = this.priceCache.filter((item) => {
+      const cleanItemName = item.name.replace('★', '').trim();
+
+      return cleanItemName.startsWith(cleanBaseName);
+    });
 
     if (matchingItems.length === 0) {
       return null;
@@ -82,7 +76,6 @@ export class PricingService implements OnModuleInit {
     let maxPrice = 0;
 
     for (const item of matchingItems) {
-      // 5. Просто отримуємо ціну з об'єкта
       const itemPrice = item.price;
 
       if (itemPrice > 0) {

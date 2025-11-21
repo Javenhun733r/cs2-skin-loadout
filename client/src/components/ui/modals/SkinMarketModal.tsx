@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getMarketplaceLinks } from '../../../lib/marketplaces';
@@ -27,62 +28,82 @@ export function SkinMarketModal({
 		};
 	}, [isOpen]);
 
-	if (!isOpen || !skin) return null;
-
-	const links = getMarketplaceLinks(skin.name);
-	const rarityColor = getRarityColor(skin.rarity);
+	const links = skin ? getMarketplaceLinks(skin.name) : [];
+	const rarityColor = skin ? getRarityColor(skin.rarity) : '#ccc';
 
 	return createPortal(
-		<div className='ModalOverlay' onClick={onClose}>
-			<div
-				className='ModalContent'
-				onClick={e => e.stopPropagation()}
-				style={
-					{
-						'--rarity-color': rarityColor,
-					} as React.CSSProperties
-				}
-			>
-				<div className='ModalGlow' />
+		<AnimatePresence>
+			{isOpen && skin && (
+				<motion.div
+					className='ModalOverlay'
+					onClick={onClose}
+					initial={{ opacity: 0 }}
+					animate={{ opacity: 1 }}
+					exit={{ opacity: 0 }}
+					transition={{ duration: 0.2 }}
+				>
+					<motion.div
+						className='ModalContent'
+						onClick={e => e.stopPropagation()}
+						style={
+							{
+								'--rarity-color': rarityColor,
+							} as React.CSSProperties
+						}
+						initial={{ scale: 0.95, opacity: 0, y: 20 }}
+						animate={{ scale: 1, opacity: 1, y: 0 }}
+						exit={{ scale: 0.95, opacity: 0, y: 20 }}
+						transition={{
+							type: 'spring',
+							damping: 25,
+							stiffness: 300,
+							duration: 0.3,
+						}}
+					>
+						<div className='ModalGlow' />
 
-				<button className='CloseButton' onClick={onClose}>
-					✕
-				</button>
+						<button className='CloseButton' onClick={onClose}>
+							✕
+						</button>
 
-				<div className='ModalHeader'>
-					<h3 className='ModalTitle'>{skin.name}</h3>
-					{skin.weapon && <span className='ModalSubtitle'>{skin.weapon}</span>}
-				</div>
-
-				<div className='ModalBody'>
-					<div className='ModalImageContainer'>
-						<img src={skin.image} alt={skin.name} className='ModalImage' />
-					</div>
-
-					<div className='MarketLinks'>
-						<h4>Buy Now:</h4>
-						<div className='LinksGrid'>
-							{links.map(link => (
-								<a
-									key={link.name}
-									href={link.url}
-									target='_blank'
-									rel='noopener noreferrer'
-									className='MarketButton'
-									style={
-										{
-											'--btn-hover-color': link.color,
-										} as React.CSSProperties
-									}
-								>
-									{link.name} ↗
-								</a>
-							))}
+						<div className='ModalHeader'>
+							<h3 className='ModalTitle'>{skin.name}</h3>
+							{skin.weapon && (
+								<span className='ModalSubtitle'>{skin.weapon}</span>
+							)}
 						</div>
-					</div>
-				</div>
-			</div>
-		</div>,
+
+						<div className='ModalBody'>
+							<div className='ModalImageContainer'>
+								<img src={skin.image} alt={skin.name} className='ModalImage' />
+							</div>
+
+							<div className='MarketLinks'>
+								<h4>Buy Now:</h4>
+								<div className='LinksGrid'>
+									{links.map(link => (
+										<a
+											key={link.name}
+											href={link.url}
+											target='_blank'
+											rel='noopener noreferrer'
+											className='MarketButton'
+											style={
+												{
+													'--btn-hover-color': link.color,
+												} as React.CSSProperties
+											}
+										>
+											{link.name} ↗
+										</a>
+									))}
+								</div>
+							</div>
+						</div>
+					</motion.div>
+				</motion.div>
+			)}
+		</AnimatePresence>,
 		document.body
 	);
 }

@@ -33,10 +33,10 @@ export type ColorBin = (typeof PRIMARY_BIN_NAMES)[number];
 
 export const BIN_NAMES: ColorBin[] = [...PRIMARY_BIN_NAMES];
 
-export const LIGHTNESS_BLACK = 0.15;
+export const LIGHTNESS_BLACK = 0.18;
 export const LIGHTNESS_WHITE = 0.93;
 
-export const CHROMA_GRAY = 0.04;
+export const CHROMA_GRAY = 0.024;
 
 export function safeOklch(
   r: number,

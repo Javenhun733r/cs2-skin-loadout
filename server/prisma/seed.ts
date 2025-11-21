@@ -14,7 +14,6 @@ import {
 } from '../src/utils/color.utils';
 
 type Histogram = Record<ColorBin, number>;
-
 const SKINS_JSON_URL =
   'https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json';
 const AGENTS_JSON_URL =
@@ -135,7 +134,7 @@ async function extractColorData(
         kernel: 'nearest',
       })
       .modulate({
-        saturation: 1.2,
+        saturation: 1.8,
         brightness: 1.0,
       })
       .raw()
@@ -143,6 +142,9 @@ async function extractColorData(
 
     const pixels: number[][] = [];
     let actualPixels = 0;
+    let totalWeight = 0;
+
+    const ACHROMATIC_BINS = ['Black', 'White', 'Gray'];
 
     for (let i = 0; i < data.length; i += 4) {
       const r = data[i];
@@ -153,8 +155,14 @@ async function extractColorData(
       if (a < CONFIG.ALPHA_THRESHOLD) continue;
 
       const bin = classifyColor(r / 255, g / 255, b / 255, a);
+
       if (bin) {
-        histogram[bin] = (histogram[bin] || 0) + 1;
+        const isChromatic = !ACHROMATIC_BINS.includes(bin);
+
+        const weight = isChromatic ? 6 : 1;
+
+        histogram[bin] = (histogram[bin] || 0) + weight;
+        totalWeight += weight;
       }
 
       actualPixels++;
@@ -164,9 +172,9 @@ async function extractColorData(
       }
     }
 
-    if (actualPixels > 0) {
+    if (totalWeight > 0) {
       for (const key of BIN_NAMES) {
-        histogram[key] = (histogram[key] || 0) / actualPixels;
+        histogram[key] = (histogram[key] || 0) / totalWeight;
       }
     }
 
@@ -180,7 +188,6 @@ async function extractColorData(
         if (result && result.centroids) {
           const counts = new Array(k).fill(0);
           for (const c of result.clusters) counts[c]++;
-
           const totalSampled = result.clusters.length;
 
           let bestCentroidIdx = -1;
@@ -190,15 +197,19 @@ async function extractColorData(
             const [r, g, b] = result.centroids[i] as [number, number, number];
             const share = counts[i] / totalSampled;
 
-            if (share < 0.05) continue;
+            if (share < 0.02) continue;
 
             const oklch = safeOklch(r / 255, g / 255, b / 255);
             const chroma = oklch?.c || 0;
 
-            let score = share * 1.0 + chroma * 3.0;
+            let score = share * 1.0 + chroma * 6.0;
 
             if (oklch && (oklch.l < 0.15 || oklch.l > 0.95)) {
-              score *= 0.5;
+              if (chroma > 0.05) {
+                score *= 0.8;
+              } else {
+                score *= 0.3;
+              }
             }
 
             if (score > maxScore) {

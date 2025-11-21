@@ -1,33 +1,49 @@
 .Button {
-	padding: 12px 24px;
-	font-size: 15px;
-	font-weight: 600;
-	border-radius: 10px;
-	border: none;
+	padding: 14px 28px;
+	font-size: 0.95rem;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	border-radius: 12px;
+	border: 1px solid rgba(255, 255, 255, 0.1);
 	cursor: pointer;
-	background: var(--color-primary);
+
+	background: linear-gradient(
+		135deg,
+		var(--color-primary) 0%,
+		var(--color-primary-dark) 100%
+	);
 	color: white;
-	transition: all 0.2s ease;
+
+	box-shadow: 0 4px 15px rgba(75, 105, 255, 0.3),
+		inset 0 1px 0 rgba(255, 255, 255, 0.2);
+
+	transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	gap: 8px;
-	box-shadow: 0 4px 12px rgba(75, 105, 255, 0.3);
+	gap: 10px;
+	position: relative;
+	overflow: hidden;
 }
 
 .Button:hover:not(:disabled) {
-	background: var(--color-primary-dark);
 	transform: translateY(-2px);
-	box-shadow: 0 6px 16px rgba(75, 105, 255, 0.4);
+	box-shadow: 0 8px 25px rgba(75, 105, 255, 0.5),
+		inset 0 1px 0 rgba(255, 255, 255, 0.2);
+	filter: brightness(1.1);
 }
 
 .Button:active:not(:disabled) {
 	transform: translateY(0);
+	box-shadow: 0 2px 8px rgba(75, 105, 255, 0.3);
 }
 
 .Button:disabled {
-	background: var(--color-disabled-bg);
-	color: var(--color-disabled-text);
+	background: var(--color-border);
+	color: var(--color-text-secondary);
 	box-shadow: none;
-	opacity: 0.7;
+	border-color: transparent;
+	cursor: not-allowed;
+	opacity: 0.6;
 }
