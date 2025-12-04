@@ -74,7 +74,7 @@ export class SkinsRepository {
 
   async findAllLoadoutOptions(
     vectorString: string,
-    threshold: number = 0.85,
+    threshold: number,
   ): Promise<SkinWithDistanceDto[]> {
     return safeRawArray<SkinWithDistanceDto>(
       this.prisma.$queryRaw(
@@ -88,8 +88,7 @@ export class SkinsRepository {
           WHERE "weapon" IS NOT NULL AND "weapon" != ''
         ) AS filtered
         WHERE distance < ${threshold}
-        ORDER BY distance ASC
-        LIMIT 800;
+        ORDER BY distance ASC;
       `,
       ),
     );

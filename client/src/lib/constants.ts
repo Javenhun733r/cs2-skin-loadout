@@ -1,16 +1,44 @@
 export const HISTOGRAM_COLOR_MAP: Record<string, string> = {
-	histRed: '#ff4500',
-	histOrange: '#ffa500',
-	histYellow: '#ffd700',
-	histGreen: '#32cd32',
-	histCyan: '#00ced1',
-	histBlue: '#1e90ff',
-	histPurple: '#8a2be2',
-	histPink: '#ff69b4',
-	histBrown: '#8b4513',
 	histBlack: '#202020',
 	histGray: '#808080',
 	histWhite: '#f5f5f5',
+	histBrown: '#8b4513',
+
+	histRed: '#ff4500',
+
+	histVermilion: '#e34234',
+
+	histOrange: '#ffa500',
+
+	histAmber: '#ffbf00',
+
+	histYellow: '#ffd700',
+
+	histLime: '#c0ff00',
+
+	histGreen: '#32cd32',
+
+	histMint: '#00fa9a',
+
+	histTeal: '#008080',
+
+	histCyan: '#00ced1',
+
+	histSkyBlue: '#87ceeb',
+
+	histBlue: '#1e90ff',
+
+	histIndigo: '#4b0082',
+
+	histViolet: '#8a2be2',
+
+	histPurple: '#800080',
+
+	histMagenta: '#ff00ff',
+
+	histFuchsia: '#ff1493',
+
+	histRose: '#ff007f',
 };
 
 export const WEAPON_TEAMS: Record<string, 'CT' | 'T' | 'BOTH'> = {

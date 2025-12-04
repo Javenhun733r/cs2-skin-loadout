@@ -1,6 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Prisma, PrismaClient } from '@prisma/client';
 import axios from 'axios';
+import { converter, formatHex } from 'culori';
 import * as KMeans from 'ml-kmeans';
 import pLimit from 'p-limit';
 import sharp from 'sharp';
@@ -9,7 +13,6 @@ import {
   BIN_NAMES,
   classifyColor,
   createVectorString,
-  safeOklch,
   type ColorBin,
 } from '../src/utils/color.utils';
 
@@ -22,6 +25,8 @@ const AGENTS_JSON_URL =
 const prisma = new PrismaClient();
 const DB_BATCH_SIZE = 500;
 const CONCURRENT_DOWNLOADS = 10;
+
+const toOklab = converter('oklab');
 
 const CONFIG = {
   IMAGE_RESIZE: { width: 128, height: 128 },
@@ -108,14 +113,6 @@ async function fetchWithRetry(url: string): Promise<Buffer> {
   );
 }
 
-function rgbToHex(r: number, g: number, b: number) {
-  const toHex = (x: number) => {
-    const h = Math.round(x).toString(16);
-    return h.length === 1 ? '0' + h : h;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
 async function extractColorData(
   imageUrl: string,
 ): Promise<{ histogram: Histogram; dominantHex: string }> {
@@ -134,7 +131,7 @@ async function extractColorData(
         kernel: 'nearest',
       })
       .modulate({
-        saturation: 1.8,
+        saturation: 1.1,
         brightness: 1.0,
       })
       .raw()
@@ -154,12 +151,15 @@ async function extractColorData(
 
       if (a < CONFIG.ALPHA_THRESHOLD) continue;
 
-      const bin = classifyColor(r / 255, g / 255, b / 255, a);
+      const distribution = classifyColor(r / 255, g / 255, b / 255, a);
 
-      if (bin) {
+      for (const [binName, ratio] of Object.entries(distribution)) {
+        const bin = binName as ColorBin;
+
         const isChromatic = !ACHROMATIC_BINS.includes(bin);
+        const baseWeight = isChromatic ? 6 : 1;
 
-        const weight = isChromatic ? 6 : 1;
+        const weight = baseWeight * ratio;
 
         histogram[bin] = (histogram[bin] || 0) + weight;
         totalWeight += weight;
@@ -168,7 +168,16 @@ async function extractColorData(
       actualPixels++;
 
       if (actualPixels % 5 === 0) {
-        pixels.push([r, g, b]);
+        const oklab = toOklab({
+          mode: 'rgb',
+          r: r / 255,
+          g: g / 255,
+          b: b / 255,
+        });
+
+        if (oklab) {
+          pixels.push([oklab.l, oklab.a || 0, oklab.b || 0]);
+        }
       }
     }
 
@@ -194,17 +203,16 @@ async function extractColorData(
           let maxScore = -1;
 
           for (let i = 0; i < k; i++) {
-            const [r, g, b] = result.centroids[i] as [number, number, number];
+            const [l, a, b] = result.centroids[i] as [number, number, number];
             const share = counts[i] / totalSampled;
 
             if (share < 0.02) continue;
 
-            const oklch = safeOklch(r / 255, g / 255, b / 255);
-            const chroma = oklch?.c || 0;
+            const chroma = Math.sqrt(a * a + b * b);
 
             let score = share * 1.0 + chroma * 6.0;
 
-            if (oklch && (oklch.l < 0.15 || oklch.l > 0.95)) {
+            if (l < 0.15 || l > 0.95) {
               if (chroma > 0.05) {
                 score *= 0.8;
               } else {
@@ -228,12 +236,16 @@ async function extractColorData(
             }
           }
 
-          const centroid = result.centroids[bestCentroidIdx] as [
-            number,
-            number,
-            number,
-          ];
-          dominantHex = rgbToHex(centroid[0], centroid[1], centroid[2]);
+          const [bestL, bestA, bestB] = result.centroids[bestCentroidIdx];
+
+          const hex = formatHex({
+            mode: 'oklab',
+            l: bestL,
+            a: bestA,
+            b: bestB,
+          });
+
+          dominantHex = hex || '#808080';
         }
       } catch (e) {
         console.warn('KMeans error:', e);

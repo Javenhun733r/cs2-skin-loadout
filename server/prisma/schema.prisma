@@ -21,7 +21,7 @@ model Skin {
   rarity      String?
   type        String
   dominantHex String                    @default("#808080")
-  histogram   Unsupported("vector(16)")
+  histogram   Unsupported("vector(22)")
 
   @@unique([id])
   @@index([dominantHex])

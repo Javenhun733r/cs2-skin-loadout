@@ -14,6 +14,22 @@ import { SkinsRepository } from './skins.repository';
 
 @Injectable()
 export class SkinsService {
+  private readonly PRIORITY_WEAPONS = [
+    'usp-s',
+    'p2000',
+    'glock-18',
+    'desert eagle',
+    'galil ar',
+    'famas',
+    'ak-47',
+    'm4a4',
+    'm4a1-s',
+    'ssg 08',
+    'awp',
+    'mp9',
+    'mac-10',
+  ];
+
   constructor(
     private skinsRepository: SkinsRepository,
     private pricingService: PricingService,
@@ -61,13 +77,17 @@ export class SkinsService {
   ): number {
     const distance = skin.distance || 1;
 
-    const price = skin.price && skin.price.min > 0 ? skin.price.min : 9999999;
+    const price = skin.price && skin.price.min > 0 ? skin.price.min : 0;
 
     if (mode === 'budget') {
-      return (distance + 0.1) * Math.pow(price, 0.4);
+      const effectivePrice = price === 0 ? 9999999 : price;
+
+      return (distance + 0.1) * Math.pow(effectivePrice, 0.4);
     }
 
-    return distance;
+    const priceBonus = Math.log10(price + 1);
+
+    return distance / (1 + priceBonus * 0.2);
   }
 
   async findSimilarSkinsBySkinId(
@@ -161,7 +181,7 @@ export class SkinsService {
 
     const skinsFromRepo = await this.skinsRepository.findAllLoadoutOptions(
       vectorString,
-      dto.threshold || 0.85,
+      dto.threshold || 0.9,
     );
 
     const allSkinsWithPrice = skinsFromRepo.map((skin) => ({
@@ -172,8 +192,24 @@ export class SkinsService {
     const mode = dto.mode || 'premium';
 
     const bestSkinsByWeapon = new Map<string, SkinResponseDto>();
+    const gloves: SkinResponseDto[] = [];
+    const knives: SkinResponseDto[] = [];
+    const agents: SkinResponseDto[] = [];
 
     for (const skin of allSkinsWithPrice) {
+      if (skin.type === 'glove') {
+        gloves.push(skin);
+        continue;
+      }
+      if (skin.type === 'knife') {
+        knives.push(skin);
+        continue;
+      }
+      if (skin.type === 'agent') {
+        agents.push(skin);
+        continue;
+      }
+
       const weapon = skin.weapon;
       if (!weapon) continue;
 
@@ -191,8 +227,52 @@ export class SkinsService {
       }
     }
 
-    return Array.from(bestSkinsByWeapon.values()).sort(
-      (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
-    );
+    const topGloves = gloves
+      .sort(
+        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+      )
+      .slice(0, 5);
+
+    const topKnives = knives
+      .sort(
+        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+      )
+      .slice(0, 5);
+
+    const topAgents = agents
+      .sort(
+        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+      )
+      .slice(0, 5);
+
+    const weaponsList = Array.from(bestSkinsByWeapon.values());
+
+    const result = [
+      ...weaponsList,
+      ...topGloves,
+      ...topKnives,
+      ...topAgents,
+    ].sort((a, b) => {
+      const weaponA = a.weapon?.toLowerCase() || '';
+      const weaponB = b.weapon?.toLowerCase() || '';
+
+      const indexA = this.PRIORITY_WEAPONS.indexOf(weaponA);
+      const indexB = this.PRIORITY_WEAPONS.indexOf(weaponB);
+
+      const isPriorityA = indexA !== -1;
+      const isPriorityB = indexB !== -1;
+
+      if (isPriorityA && isPriorityB) {
+        return indexA - indexB;
+      }
+
+      if (isPriorityA) return -1;
+
+      if (isPriorityB) return 1;
+
+      return this.calculateScore(a, mode) - this.calculateScore(b, mode);
+    });
+
+    return result;
   }
 }

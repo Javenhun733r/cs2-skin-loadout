@@ -1,24 +1,49 @@
 /* eslint-disable */
-import { oklch } from 'culori';
+import { converter, oklch } from 'culori';
 
-export const TOTAL_BINS = 16;
+const toHsl = converter('hsl');
 
-const HUE_BINS = 12;
+export const TOTAL_BINS = 22;
+
+const HUE_BINS = 18;
 const HUE_BIN_WIDTH = 360 / HUE_BINS;
 
 export const CHROMATIC_BIN_NAMES = [
   'Red',
+
+  'OrangeRed',
+
   'Orange',
+
   'Yellow',
-  'YellowGreen',
+
+  'Lime',
+
   'Green',
-  'CyanGreen',
+
+  'Emerald',
+
+  'Mint',
+
+  'Teal',
+
   'Cyan',
-  'CyanBlue',
+
+  'SkyBlue',
+
   'Blue',
+
   'Indigo',
+
+  'Violet',
+
   'Purple',
+
   'Magenta',
+
+  'Fuchsia',
+
+  'Rose',
 ] as const;
 
 export const PRIMARY_BIN_NAMES = [
@@ -30,34 +55,17 @@ export const PRIMARY_BIN_NAMES = [
 ] as const;
 
 export type ColorBin = (typeof PRIMARY_BIN_NAMES)[number];
-
 export const BIN_NAMES: ColorBin[] = [...PRIMARY_BIN_NAMES];
 
-export const LIGHTNESS_BLACK = 0.18;
-export const LIGHTNESS_WHITE = 0.93;
+export const LIGHTNESS_BLACK = 0.28;
 
-export const CHROMA_GRAY = 0.024;
+export const LIGHTNESS_WHITE = 0.8;
 
-export function safeOklch(
-  r: number,
-  g: number,
-  b: number,
-): { l: number; c: number; h: number } | null {
+export const CHROMA_GRAY = 0.03;
+
+export function safeOklch(r: number, g: number, b: number) {
   try {
-    const cResult = oklch({ mode: 'rgb', r, g, b } as any) as any;
-
-    if (!cResult) return null;
-
-    const l = cResult.l as number;
-    const c = cResult.c as number;
-    const hRaw = cResult.h as number | undefined;
-
-    if (typeof l !== 'number' || isNaN(l) || typeof c !== 'number' || isNaN(c))
-      return null;
-
-    const h = typeof hRaw === 'number' && !isNaN(hRaw) ? hRaw : 0;
-
-    return { l, c, h };
+    return oklch({ mode: 'rgb', r, g, b });
   } catch {
     return null;
   }
@@ -68,32 +76,52 @@ export function classifyColor(
   g: number,
   b: number,
   a: number,
-): ColorBin | null {
-  if (a < 100) return null;
+): Partial<Record<ColorBin, number>> {
+  if (a < 100) return {};
 
   const col = safeOklch(r, g, b);
-  if (!col) return 'Gray';
+  if (!col) return { Gray: 1 };
 
   const { l, c } = col;
 
-  if (c >= CHROMA_GRAY) {
-    const hue = (col.h || 0) % 360;
+  if (l < 0.02) return { Black: 1 };
+  if (l < 0.25 && c / l <= 0.15) return { Black: 1 };
 
-    if (hue >= 15 && hue <= 90 && l < 0.45 && c < 0.15) {
-      return 'Brown';
-    }
+  if (l > 0.85 && c < 0.12) return { White: 1 };
 
-    const shiftedHue = (hue + HUE_BIN_WIDTH / 2) % 360;
-    const hueIndex = Math.floor(shiftedHue / HUE_BIN_WIDTH) % HUE_BINS;
-    return CHROMATIC_BIN_NAMES[hueIndex] || 'Red';
+  if (l >= 0.25 && c < CHROMA_GRAY) {
+    if (l < LIGHTNESS_BLACK) return { Black: 1 };
+    if (l > LIGHTNESS_WHITE) return { White: 1 };
+    return { Gray: 1 };
   }
 
-  if (l < LIGHTNESS_BLACK) return 'Black';
-  if (l > LIGHTNESS_WHITE) return 'White';
+  const hslCol = toHsl({ mode: 'rgb', r: r / 255, g: g / 255, b: b / 255 });
+  const hue = (hslCol?.h || 0) % 360;
 
-  return 'Gray';
+  if (hue >= 15 && hue <= 60 && (l < 0.4 || c < 0.1)) {
+    return { Brown: 1 };
+  }
+
+  if (hue > 60 && hue < 100 && (l < 0.35 || c < 0.1)) {
+    return { Brown: 1 };
+  }
+
+  const hueBinCount = CHROMATIC_BIN_NAMES.length;
+  const shiftedHue = (hue + HUE_BIN_WIDTH / 2) % 360;
+  const exactPos = shiftedHue / HUE_BIN_WIDTH;
+
+  const bin1Idx = Math.floor(exactPos) % hueBinCount;
+  const bin2Idx = (bin1Idx + 1) % hueBinCount;
+  const ratio = exactPos - Math.floor(exactPos);
+
+  const bin1Name = CHROMATIC_BIN_NAMES[bin1Idx];
+  const bin2Name = CHROMATIC_BIN_NAMES[bin2Idx];
+
+  return {
+    [bin1Name]: 1.0 - ratio,
+    [bin2Name]: ratio,
+  };
 }
-
 export function hexToRgb(
   hex: string,
 ): { r: number; g: number; b: number } | null {
@@ -110,6 +138,7 @@ export function histogramToVector(
   histogram: Record<ColorBin, number>,
 ): number[] {
   const vector = BIN_NAMES.map((bin) => histogram[bin] || 0);
+
   const sum = vector.reduce((a, b) => a + b, 0) || 1;
   return vector.map((v) => v / sum);
 }
@@ -129,61 +158,37 @@ export function createTargetVectorFromColor(hex: string): {
   BIN_NAMES.forEach((bin) => (vector[bin] = 0));
 
   const rgb = hexToRgb(hex);
-  if (!rgb) {
-    return { targetVector: vector, primaryBins: [] };
+  if (!rgb) return { targetVector: vector, primaryBins: [] };
+
+  const distribution = classifyColor(rgb.r, rgb.g, rgb.b, 255);
+
+  if (distribution['Black'] && distribution['Black'] > 0.8) {
+    distribution['Black'] = 0.6;
+    distribution['Gray'] = (distribution['Gray'] || 0) + 0.4;
   }
 
-  const oklchColor = safeOklch(rgb.r / 255, rgb.g / 255, rgb.b / 255);
-  if (!oklchColor) return { targetVector: vector, primaryBins: [] };
+  const primaryBins: ColorBin[] = [];
+  let maxWeight = 0;
 
-  const { l, c, h } = oklchColor;
-
-  if (c >= CHROMA_GRAY) {
-    const hue = (h ?? 0) % 360;
-
-    if (hue >= 15 && hue <= 90 && l < 0.45 && c < 0.15) {
-      vector['Brown'] = 1;
-      return { targetVector: vector, primaryBins: ['Brown'] };
+  for (const [binName, weight] of Object.entries(distribution)) {
+    const bin = binName as ColorBin;
+    if (typeof weight === 'number' && weight > 0) {
+      vector[bin] = weight;
+      if (weight > maxWeight) maxWeight = weight;
     }
-
-    const hueBinCount = CHROMATIC_BIN_NAMES.length;
-    const binWidth = 360 / hueBinCount;
-
-    const exactPos = hue / binWidth;
-    const bin1Idx = Math.floor(exactPos) % hueBinCount;
-    const bin2Idx = (bin1Idx + 1) % hueBinCount;
-
-    const ratio = exactPos - Math.floor(exactPos);
-
-    const bin1Name = CHROMATIC_BIN_NAMES[bin1Idx];
-    const bin2Name = CHROMATIC_BIN_NAMES[bin2Idx];
-
-    vector[bin1Name] = 1.0 - ratio;
-    vector[bin2Name] = ratio;
-
-    const primaryBins = ratio > 0.5 ? [bin2Name] : [bin1Name];
-    return { targetVector: vector, primaryBins };
   }
 
-  if (l < LIGHTNESS_BLACK) {
-    vector['Black'] = 0.8;
-    vector['Gray'] = 0.2;
-    return { targetVector: vector, primaryBins: ['Black'] };
-  }
-  if (l > LIGHTNESS_WHITE) {
-    vector['White'] = 0.8;
-    vector['Gray'] = 0.2;
-    return { targetVector: vector, primaryBins: ['White'] };
+  for (const [binName, weight] of Object.entries(distribution)) {
+    const bin = binName as ColorBin;
+    if (typeof weight === 'number' && weight >= maxWeight * 0.5) {
+      primaryBins.push(bin);
+    }
   }
 
-  vector['Gray'] = 1;
-  return { targetVector: vector, primaryBins: ['Gray'] };
+  return { targetVector: vector, primaryBins };
 }
 
-export function createTargetVectorFromColors(hexColors: string[]): {
-  targetVector: Record<ColorBin, number>;
-  primaryBins: ColorBin[];
-} {
+export function createTargetVectorFromColors(hexColors: string[]) {
   const vector = {} as Record<ColorBin, number>;
   BIN_NAMES.forEach((bin) => (vector[bin] = 0));
 

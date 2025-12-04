@@ -66,4 +66,4 @@ DROP COLUMN "histPurple",
 DROP COLUMN "histRed",
 DROP COLUMN "histWhite",
 DROP COLUMN "histYellow",
-ADD COLUMN     "histogram" vector(16) NOT NULL;
+ADD COLUMN     "histogram" vector(22) NOT NULL;
