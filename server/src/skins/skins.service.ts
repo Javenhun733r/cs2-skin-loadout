@@ -76,18 +76,16 @@ export class SkinsService {
     mode: 'premium' | 'budget',
   ): number {
     const distance = skin.distance || 1;
-
     const price = skin.price && skin.price.min > 0 ? skin.price.min : 0;
 
     if (mode === 'budget') {
       const effectivePrice = price === 0 ? 9999999 : price;
-
       return (distance + 0.1) * Math.pow(effectivePrice, 0.4);
     }
 
-    const priceBonus = Math.log10(price + 1);
+    const priceBonus = Math.pow(Math.log10(price + 1), 2);
 
-    return distance / (1 + priceBonus * 0.2);
+    return distance / (1 + priceBonus * 0.5);
   }
 
   async findSimilarSkinsBySkinId(
