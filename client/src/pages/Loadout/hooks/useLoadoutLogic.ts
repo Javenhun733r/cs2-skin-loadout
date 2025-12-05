@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import * as api from '../../../lib/api';
 import { WEAPON_CATEGORIES, WEAPON_TEAMS } from '../../../lib/constants';
@@ -18,63 +19,44 @@ export interface CategorizedLoadout {
 
 export function useLoadoutLogic() {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [allSkins, setAllSkins] = useState<SkinWithDistance[]>([]);
 	const [team, setTeam] = useState<Team>('CT');
 
-	const [categorized, setCategorized] = useState<CategorizedLoadout>({
-		agent: null,
-		pistols: [],
-		midTier: [],
-		rifles: [],
-		knife: null,
-		glove: null,
-	});
-
-	const [isLoading, setIsLoading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
 
+	const colorsParam = searchParams.get('colors');
+	const modeParam = (searchParams.get('mode') as LoadoutMode) || 'premium';
+
 	const [colors, setColors] = useState<string[]>(() => {
-		const param = searchParams.get('colors');
-		if (param) {
-			return param.split(',').map(c => `#${c}`);
+		if (colorsParam) {
+			return colorsParam.split(',').map(c => `#${c}`);
 		}
 		const oldParam = searchParams.get('color');
 		return oldParam ? [`#${oldParam}`] : ['#663399'];
 	});
 
-	const [mode, setMode] = useState<LoadoutMode>(
-		(searchParams.get('mode') as LoadoutMode) || 'premium'
-	);
+	const [mode, setModeState] = useState<LoadoutMode>(modeParam);
 
-	const handleColorChange = (index: number, newColor: string) => {
-		const newColors = [...colors];
-		newColors[index] = newColor;
-		setColors(newColors);
+	const updateParams = (newColors: string[], newMode: LoadoutMode) => {
+		const param = newColors.map(c => c.replace('#', '')).join(',');
+		setSearchParams({ colors: param, mode: newMode });
 	};
 
-	const addColor = () => {
-		if (colors.length < 3) {
-			setColors([...colors, '#FFFFFF']);
-		}
-	};
+	const {
+		data: allSkins = [],
+		isLoading,
+		error,
+	} = useQuery({
+		queryKey: ['loadout', { colors: colorsParam, mode: modeParam }],
+		queryFn: () => {
+			if (!colorsParam) return [];
+			return api.fetchLoadout(colorsParam.split(','), modeParam);
+		},
+		enabled: !!colorsParam,
+		staleTime: 1000 * 60 * 5,
+	});
 
-	const removeColor = (index: number) => {
-		if (colors.length > 1) {
-			setColors(colors.filter((_, i) => i !== index));
-		}
-	};
-
-	const handleCardClick = (skin: Skin) => {
-		setModalSkin(skin);
-		setIsModalOpen(true);
-	};
-
-	const filterAndCategorize = (
-		skins: SkinWithDistance[],
-		currentTeam: Team
-	) => {
+	const categorized = useMemo(() => {
 		const newLoadout: CategorizedLoadout = {
 			agent: null,
 			pistols: [],
@@ -88,14 +70,13 @@ export function useLoadoutLogic() {
 		const availableMidTier: SkinWithDistance[] = [];
 		const availableRifles: SkinWithDistance[] = [];
 
-		skins.forEach(skin => {
+		allSkins.forEach(skin => {
 			if (skin.type === 'agent') {
-				if (!newLoadout.agent && skin.weapon === currentTeam) {
+				if (!newLoadout.agent && skin.weapon === team) {
 					newLoadout.agent = skin;
 				}
 				return;
 			}
-
 			if (skin.type === 'knife') {
 				if (!newLoadout.knife) newLoadout.knife = skin;
 				return;
@@ -107,9 +88,9 @@ export function useLoadoutLogic() {
 
 			if (skin.weapon) {
 				const weaponName = skin.weapon.toLowerCase();
-
 				const weaponTeam = WEAPON_TEAMS[weaponName];
-				if (weaponTeam && weaponTeam !== 'BOTH' && weaponTeam !== currentTeam) {
+
+				if (weaponTeam && weaponTeam !== 'BOTH' && weaponTeam !== team) {
 					return;
 				}
 
@@ -124,56 +105,55 @@ export function useLoadoutLogic() {
 		});
 
 		const startingPistolNames =
-			currentTeam === 'CT' ? ['usp-s', 'p2000'] : ['glock-18'];
-
+			team === 'CT' ? ['usp-s', 'p2000'] : ['glock-18'];
 		const startingCandidates = availablePistols.filter(
 			s => s.weapon && startingPistolNames.includes(s.weapon.toLowerCase())
 		);
-
 		const otherCandidates = availablePistols.filter(
 			s => s.weapon && !startingPistolNames.includes(s.weapon.toLowerCase())
 		);
 
-		const bestStartingPistol = startingCandidates[0];
-
-		newLoadout.pistols = [bestStartingPistol, ...otherCandidates]
+		newLoadout.pistols = [startingCandidates[0], ...otherCandidates]
 			.filter(Boolean)
 			.slice(0, 5);
-
 		newLoadout.midTier = availableMidTier.slice(0, 5);
 		newLoadout.rifles = availableRifles.slice(0, 5);
 
-		setCategorized(newLoadout);
+		return newLoadout;
+	}, [allSkins, team]);
+
+	const setMode = (newMode: LoadoutMode) => {
+		setModeState(newMode);
+		updateParams(colors, newMode);
 	};
 
-	useEffect(() => {
-		if (allSkins.length > 0) {
-			filterAndCategorize(allSkins, team);
+	const handleColorChange = (index: number, newColor: string) => {
+		const newColors = [...colors];
+		newColors[index] = newColor;
+		setColors(newColors);
+		updateParams(newColors, mode);
+	};
+
+	const addColor = () => {
+		if (colors.length < 3) {
+			const newColors = [...colors, '#FFFFFF'];
+			setColors(newColors);
+			updateParams(newColors, mode);
 		}
-	}, [team, allSkins]);
+	};
 
-	useEffect(() => {
-		if (colors.length === 0) return;
+	const removeColor = (index: number) => {
+		if (colors.length > 1) {
+			const newColors = colors.filter((_, i) => i !== index);
+			setColors(newColors);
+			updateParams(newColors, mode);
+		}
+	};
 
-		const colorsParam = colors.map(c => c.replace('#', '')).join(',');
-		setSearchParams({ colors: colorsParam, mode });
-
-		const loadData = async () => {
-			setIsLoading(true);
-			setError(null);
-			try {
-				const data = await api.fetchLoadout(colors, mode);
-				setAllSkins(data);
-			} catch (err) {
-				setError((err as Error).message);
-			} finally {
-				setIsLoading(false);
-			}
-		};
-
-		const timer = setTimeout(loadData, 500);
-		return () => clearTimeout(timer);
-	}, [colors, mode, setSearchParams]);
+	const handleCardClick = (skin: Skin) => {
+		setModalSkin(skin);
+		setIsModalOpen(true);
+	};
 
 	return {
 		colors,
@@ -183,7 +163,7 @@ export function useLoadoutLogic() {
 		setMode,
 		categorized,
 		isLoading,
-		error,
+		error: error ? (error as Error).message : null,
 		modalSkin,
 		isModalOpen,
 		setModalSkin,

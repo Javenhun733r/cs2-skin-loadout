@@ -1,16 +1,15 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { useState } from 'react';
 
+import { useSearchParams } from 'react-router-dom';
+import { SkinCard } from '../../components/skin-card/SkinCard';
 import { Button } from '../../components/ui/button/Button';
 import { SkinMarketModal } from '../../components/ui/modals/SkinMarketModal';
 import type { Skin } from '../../types/types';
-import './HomePage.css';
-
-import { useSearchParams } from 'react-router-dom';
-import { SkinCard } from '../../components/skin-card/SkinCard';
 import { ColorSearchPanel } from './components/ColorSearchPanel';
 import { ResultsSection } from './components/ResultsSection';
 import { TextSearchPanel } from './components/TextSearchPanel';
+import './HomePage.css';
 import { useHomeLogic } from './hooks/useHomeLogic';
 
 function HomePage() {
@@ -188,7 +187,8 @@ function HomePage() {
 							marginBottom: '40px',
 						}}
 					>
-						<Button onClick={loadMore}>Load More Skins</Button>
+						{}
+						<Button onClick={() => loadMore()}>Load More Skins</Button>
 					</div>
 				)}
 

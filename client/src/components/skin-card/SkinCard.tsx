@@ -74,7 +74,12 @@ export function SkinCard({ skin, onClick }: SkinCardProps) {
 					{formattedPrice && (
 						<div className='SkinCardPrice'>{formattedPrice || 'N/A'}</div>
 					)}
-					<img src={skin.image} alt={skin.name} className='SkinCardImage' />
+					<img
+						src={skin.image}
+						alt={skin.name}
+						className='SkinCardImage'
+						loading='lazy'
+					/>
 					<div className='SkinCardInfo'>
 						<p className='SkinCardName'>{skin.name}</p>
 						{skin.weapon && (

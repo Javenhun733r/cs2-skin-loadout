@@ -1,0 +1,16 @@
+export const SCORE_CONFIG = {
+  BUDGET: {
+    DISTANCE_OFFSET: 0.1,
+
+    PRICE_EXPONENT: 0.4,
+
+    NO_PRICE_PENALTY: 9999999,
+  },
+  PREMIUM: {
+    LOG_OFFSET: 1,
+
+    PRICE_BONUS_EXPONENT: 2,
+
+    PRICE_WEIGHT: 0.5,
+  },
+} as const;

@@ -6,11 +6,11 @@ import {
   TOTAL_BINS,
   type ColorBin as UtilsColorBin,
 } from '../utils/color.utils';
+import { SCORE_CONFIG } from '../utils/constants';
 import { FindLoadoutDto } from './dto/find-loadout.dto';
 import { FindSimilarDto, FindSkinsDto } from './dto/find-skins.dto';
 import { SkinDto, SkinResponseDto, type Histogram } from './dto/skin.dto';
 import { SkinsRepository } from './skins.repository';
-
 @Injectable()
 export class SkinsService {
   private readonly PRIORITY_WEAPONS = [
@@ -80,12 +80,21 @@ export class SkinsService {
     const price = skin.price && skin.price.min > 0 ? skin.price.min : 0;
 
     if (mode === 'budget') {
-      const effectivePrice = price === 0 ? 9999999 : price;
-      return (distance + 0.1) * Math.pow(effectivePrice, 0.4);
+      const effectivePrice =
+        price === 0 ? SCORE_CONFIG.BUDGET.NO_PRICE_PENALTY : price;
+
+      return (
+        (distance + SCORE_CONFIG.BUDGET.DISTANCE_OFFSET) *
+        Math.pow(effectivePrice, SCORE_CONFIG.BUDGET.PRICE_EXPONENT)
+      );
     }
 
-    const priceBonus = Math.pow(Math.log10(price + 1), 2);
-    return distance / (1 + priceBonus * 0.5);
+    const priceBonus = Math.pow(
+      Math.log10(price + SCORE_CONFIG.PREMIUM.LOG_OFFSET),
+      SCORE_CONFIG.PREMIUM.PRICE_BONUS_EXPONENT,
+    );
+
+    return distance / (1 + priceBonus * SCORE_CONFIG.PREMIUM.PRICE_WEIGHT);
   }
 
   async findSimilarSkinsBySkinId(
@@ -175,6 +184,7 @@ export class SkinsService {
     const allSkinsWithPrice = skinsFromRepo.map((skin) =>
       this.mapSkinToResponse(skin),
     );
+
     const mode = dto.mode || 'premium';
 
     const bestSkinsByWeapon = new Map<string, SkinResponseDto>();
@@ -233,21 +243,32 @@ export class SkinsService {
 
     const weaponsList = Array.from(bestSkinsByWeapon.values());
 
-    return [...weaponsList, ...topGloves, ...topKnives, ...topAgents].sort(
-      (a, b) => {
-        const weaponA = a.weapon?.toLowerCase() || '';
-        const weaponB = b.weapon?.toLowerCase() || '';
-        const indexA = this.PRIORITY_WEAPONS.indexOf(weaponA);
-        const indexB = this.PRIORITY_WEAPONS.indexOf(weaponB);
-        const isPriorityA = indexA !== -1;
-        const isPriorityB = indexB !== -1;
+    const result = [
+      ...weaponsList,
+      ...topGloves,
+      ...topKnives,
+      ...topAgents,
+    ].sort((a, b) => {
+      const weaponA = a.weapon?.toLowerCase() || '';
+      const weaponB = b.weapon?.toLowerCase() || '';
 
-        if (isPriorityA && isPriorityB) return indexA - indexB;
-        if (isPriorityA) return -1;
-        if (isPriorityB) return 1;
+      const indexA = this.PRIORITY_WEAPONS.indexOf(weaponA);
+      const indexB = this.PRIORITY_WEAPONS.indexOf(weaponB);
 
-        return this.calculateScore(a, mode) - this.calculateScore(b, mode);
-      },
-    );
+      const isPriorityA = indexA !== -1;
+      const isPriorityB = indexB !== -1;
+
+      if (isPriorityA && isPriorityB) {
+        return indexA - indexB;
+      }
+
+      if (isPriorityA) return -1;
+
+      if (isPriorityB) return 1;
+
+      return this.calculateScore(a, mode) - this.calculateScore(b, mode);
+    });
+
+    return result;
   }
 }
