@@ -1,7 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable */
 import { Prisma, PrismaClient } from '@prisma/client';
 import axios from 'axios';
 import { converter, formatHex } from 'culori';
@@ -349,12 +346,18 @@ async function processAgent(
 
 async function main(): Promise<void> {
   try {
-    const skinCount = await prisma.skin.count();
-    if (skinCount > 0) {
-      console.log(`Database currently has ${skinCount} items.`);
-    }
+    const existingSkins = await prisma.skin.findMany({
+      select: { id: true },
+    });
+    const existingIds = new Set(existingSkins.map((s) => s.id));
 
-    console.log('Starting seeding process...');
+    if (existingIds.size > 0) {
+      console.log(
+        `Database currently has ${existingIds.size} items. Checking for new ones...`,
+      );
+    } else {
+      console.log('Database is empty. Starting fresh seed...');
+    }
 
     console.log('Fetching Skins...');
     const skinsResponse = await axios.get<RawSkinData[]>(SKINS_JSON_URL, {
@@ -374,15 +377,25 @@ async function main(): Promise<void> {
     }
     const rawAgents = agentsResponse.data;
 
+    const newSkins = rawSkins.filter((skin) => !existingIds.has(skin.id));
+    const newAgents = rawAgents.filter((agent) => !existingIds.has(agent.id));
+
     console.log(
-      `Found ${rawSkins.length} skins and ${rawAgents.length} agents.`,
+      `Total items found: ${rawSkins.length + rawAgents.length}. New items to process: ${
+        newSkins.length + newAgents.length
+      }. (Skipped: ${existingIds.size})`,
     );
+
+    if (newSkins.length === 0 && newAgents.length === 0) {
+      console.log('No new items to add. Exiting.');
+      return;
+    }
 
     const limit = pLimit(CONCURRENT_DOWNLOADS);
     let processed = 0;
-    const totalItems = rawSkins.length + rawAgents.length;
+    const totalItems = newSkins.length + newAgents.length;
 
-    const skinPromises = rawSkins.map((skin) =>
+    const skinPromises = newSkins.map((skin) =>
       limit(async () => {
         const result = await processSkin(skin);
         processed++;
@@ -397,7 +410,7 @@ async function main(): Promise<void> {
       }),
     );
 
-    const agentPromises = rawAgents.map((agent) =>
+    const agentPromises = newAgents.map((agent) =>
       limit(async () => {
         const result = await processAgent(agent);
         processed++;
@@ -414,45 +427,44 @@ async function main(): Promise<void> {
 
     const allData = await Promise.all([...skinPromises, ...agentPromises]);
 
-    console.log('All images processed. Starting database upsert...');
+    if (allData.length > 0) {
+      console.log('New items processed. Starting database insertion...');
 
-    for (let i = 0; i < allData.length; i += DB_BATCH_SIZE) {
-      const batch = allData.slice(i, i + DB_BATCH_SIZE);
+      for (let i = 0; i < allData.length; i += DB_BATCH_SIZE) {
+        const batch = allData.slice(i, i + DB_BATCH_SIZE);
 
-      try {
-        const values = Prisma.join(
-          batch.map(
-            (item) =>
-              Prisma.sql`(${item.id}, ${item.name}, ${item.image}, ${
-                item.weapon
-              }, ${item.rarity}, ${item.type}, ${item.dominantHex}, ${
-                item.histogramVector
-              }::vector)`,
-          ),
-        );
+        try {
+          const values = Prisma.join(
+            batch.map(
+              (item) =>
+                Prisma.sql`(${item.id}, ${item.name}, ${item.image}, ${
+                  item.weapon
+                }, ${item.rarity}, ${item.type}, ${item.dominantHex}, ${
+                  item.histogramVector
+                }::vector)`,
+            ),
+          );
 
-        await prisma.$executeRaw`
-          INSERT INTO "Skin" (id, name, image, weapon, rarity, "type", "dominantHex", histogram)
-          VALUES ${values}
-          ON CONFLICT (id) DO UPDATE SET
-            "histogram" = EXCLUDED."histogram",
-            "dominantHex" = EXCLUDED."dominantHex",
-            "type" = EXCLUDED."type",
-            "weapon" = EXCLUDED."weapon";
-        `;
+          await prisma.$executeRaw`
+            INSERT INTO "Skin" (id, name, image, weapon, rarity, "type", "dominantHex", histogram)
+            VALUES ${values}
+            ON CONFLICT (id) DO NOTHING;
+            `;
 
-        console.log(
-          `Upserted ${Math.min(
-            i + batch.length,
-            allData.length,
-          )} / ${allData.length} items...`,
-        );
-      } catch (err) {
-        logError(err, `Error writing batch ${i / DB_BATCH_SIZE + 1}`);
+          console.log(
+            `Inserted ${Math.min(
+              i + batch.length,
+              allData.length,
+            )} / ${allData.length} new items...`,
+          );
+        } catch (err) {
+          logError(err, `Error writing batch ${i / DB_BATCH_SIZE + 1}`);
+        }
       }
+      console.log(`✓ Successfully added ${allData.length} new items.`);
+    } else {
+      console.log('No data to insert.');
     }
-
-    console.log(`✓ Successfully processed ${allData.length} items.`);
   } catch (err: unknown) {
     logError(err, 'Seeding error');
     throw err;

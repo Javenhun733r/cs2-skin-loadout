@@ -11,6 +11,9 @@ export class SkinDto {
   type: string;
   dominantHex: string;
 
+  priceMin: number;
+  priceMax: number;
+
   histogram?: string;
 
   [key: string]: any;
@@ -22,6 +25,7 @@ export class SkinWithDistanceDto extends SkinDto {
 
 export class SkinResponseDto extends SkinDto {
   distance?: number;
+
   price?: { min: number; max: number } | null;
 }
 

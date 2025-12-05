@@ -34,7 +34,7 @@ export class SkinsRepository {
     const result = await safeRawArray<SkinDto>(
       this.prisma.$queryRaw(
         Prisma.sql`
-          SELECT id, name, image, weapon, rarity, type, "dominantHex", histogram::text
+          SELECT id, name, image, weapon, rarity, type, "dominantHex", "priceMin", "priceMax", histogram::text
           FROM "Skin"
           WHERE id = ${id};
         `,
@@ -47,7 +47,7 @@ export class SkinsRepository {
   async findAll(): Promise<SkinDto[]> {
     const result = await safeRawArray<SkinDto>(
       this.prisma.$queryRaw(
-        Prisma.sql`SELECT id, name, image, weapon, rarity, type, "dominantHex", histogram::text FROM "Skin"`,
+        Prisma.sql`SELECT id, name, image, weapon, rarity, type, "dominantHex", "priceMin", "priceMax", histogram::text FROM "Skin"`,
       ),
     );
     return result;
@@ -61,7 +61,7 @@ export class SkinsRepository {
     return safeRawArray<SkinWithDistanceDto>(
       this.prisma.$queryRaw(
         Prisma.sql`
-          SELECT id, name, image, weapon, rarity, type, "dominantHex",
+          SELECT id, name, image, weapon, rarity, type, "dominantHex", "priceMin", "priceMax",
                  histogram::text, 
                  (histogram <=> ${vectorString}::vector) AS distance
           FROM "Skin"
@@ -81,7 +81,7 @@ export class SkinsRepository {
         Prisma.sql`
         SELECT * FROM (
           SELECT 
-            id, name, image, weapon, rarity, type, "dominantHex",
+            id, name, image, weapon, rarity, type, "dominantHex", "priceMin", "priceMax",
             histogram::text, 
             (histogram <=> ${vectorString}::vector) AS distance
           FROM "Skin"
@@ -110,7 +110,7 @@ export class SkinsRepository {
     const results = await safeRawArray<SkinDto>(
       this.prisma.$queryRaw(
         Prisma.sql`
-          SELECT id, name, image, weapon, rarity, type, "dominantHex", histogram::text
+          SELECT id, name, image, weapon, rarity, type, "dominantHex", "priceMin", "priceMax", histogram::text
           FROM "Skin"
           WHERE ${whereSql}
           LIMIT ${limit} OFFSET ${offset}; 

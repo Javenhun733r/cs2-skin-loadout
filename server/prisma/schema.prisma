@@ -14,14 +14,17 @@ datasource db {
 }
 
 model Skin {
-  id          String                    @id
-  name        String
-  image       String
-  weapon      String?
-  rarity      String?
-  type        String
-  dominantHex String                    @default("#808080")
-  histogram   Unsupported("vector(22)")
+  id             String                    @id
+  name           String
+  image          String
+  weapon         String?
+  rarity         String?
+  type           String
+  dominantHex    String                    @default("#808080")
+  histogram      Unsupported("vector(22)")
+  priceMin       Int                       @default(0)
+  priceMax       Int                       @default(0)
+  priceUpdatedAt DateTime                  @default(now())
 
   @@unique([id])
   @@index([dominantHex])

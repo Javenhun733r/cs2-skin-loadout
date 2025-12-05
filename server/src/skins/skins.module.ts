@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { PricingModule } from 'src/pricing/pricing.module';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { SkinsController } from './skins.controller';
 import { SkinsRepository } from './skins.repository';
 import { SkinsService } from './skins.service';
+
 @Module({
-  imports: [PrismaModule, PricingModule],
+  imports: [PrismaModule],
   controllers: [SkinsController],
   providers: [SkinsService, SkinsRepository],
 })

@@ -1,5 +1,6 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
+import { PrismaModule } from '../prisma/prisma.module';
 
 import { PricingService } from './pricing.service';
 
@@ -9,6 +10,7 @@ import { PricingService } from './pricing.service';
       timeout: 10000,
       maxRedirects: 5,
     }),
+    PrismaModule,
   ],
   providers: [PricingService],
   exports: [PricingService],

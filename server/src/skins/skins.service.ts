@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PricingService } from '../pricing/pricing.service';
 import {
   BIN_NAMES,
   createTargetVectorFromColors,
@@ -30,10 +29,15 @@ export class SkinsService {
     'mac-10',
   ];
 
-  constructor(
-    private skinsRepository: SkinsRepository,
-    private pricingService: PricingService,
-  ) {}
+  constructor(private skinsRepository: SkinsRepository) {}
+
+  private mapSkinToResponse(skin: SkinDto): SkinResponseDto {
+    const mapped = this.parseHistogramFromSkin(skin);
+    return {
+      ...mapped,
+      price: { min: skin.priceMin, max: skin.priceMax },
+    };
+  }
 
   private parseHistogramFromSkin(skin: SkinDto): SkinDto {
     if (typeof skin.histogram === 'string') {
@@ -59,13 +63,10 @@ export class SkinsService {
     const vector: Histogram = {} as Histogram;
     for (let i = 0; i < TOTAL_BINS; i++) {
       const binName = BIN_NAMES[i];
-
       let val = (skin as Record<string, unknown>)[`hist${binName}`];
-
       if (val === undefined) {
         val = (skin as Record<string, unknown>)[`hist${i}`];
       }
-
       vector[binName] = typeof val === 'number' && !isNaN(val) ? val : 0;
     }
     return vector;
@@ -84,7 +85,6 @@ export class SkinsService {
     }
 
     const priceBonus = Math.pow(Math.log10(price + 1), 2);
-
     return distance / (1 + priceBonus * 0.5);
   }
 
@@ -106,7 +106,6 @@ export class SkinsService {
     const mode = dto.mode || 'premium';
     const requestedLimit = dto.limit || 20;
     const searchPoolLimit = requestedLimit * 5;
-
     const offset = (page - 1) * searchPoolLimit;
 
     const skinsFromRepo = await this.skinsRepository.findByVector(
@@ -115,10 +114,9 @@ export class SkinsService {
       offset,
     );
 
-    const skinsWithPrices: SkinResponseDto[] = skinsFromRepo.map((skin) => ({
-      ...this.parseHistogramFromSkin(skin),
-      price: this.pricingService.getPriceByName(skin.name),
-    }));
+    const skinsWithPrices: SkinResponseDto[] = skinsFromRepo.map((skin) =>
+      this.mapSkinToResponse(skin),
+    );
 
     return skinsWithPrices
       .filter((s) => s.id !== skinId)
@@ -146,12 +144,7 @@ export class SkinsService {
       offset,
     );
 
-    const result = skinsFromRepo.map((skin) => ({
-      ...this.parseHistogramFromSkin(skin),
-      price: this.pricingService.getPriceByName(skin.name),
-    }));
-
-    return result;
+    return skinsFromRepo.map((skin) => this.mapSkinToResponse(skin));
   }
 
   async searchSkinsByName(
@@ -165,10 +158,7 @@ export class SkinsService {
       limit,
       offset,
     );
-    return skinsFromRepo.map((skin) => ({
-      ...this.parseHistogramFromSkin(skin),
-      price: this.pricingService.getPriceByName(skin.name),
-    }));
+    return skinsFromRepo.map((skin) => this.mapSkinToResponse(skin));
   }
 
   async findLoadoutByColor(dto: FindLoadoutDto): Promise<SkinResponseDto[]> {
@@ -182,11 +172,9 @@ export class SkinsService {
       dto.threshold || 0.9,
     );
 
-    const allSkinsWithPrice = skinsFromRepo.map((skin) => ({
-      ...this.parseHistogramFromSkin(skin),
-      price: this.pricingService.getPriceByName(skin.name),
-    }));
-
+    const allSkinsWithPrice = skinsFromRepo.map((skin) =>
+      this.mapSkinToResponse(skin),
+    );
     const mode = dto.mode || 'premium';
 
     const bestSkinsByWeapon = new Map<string, SkinResponseDto>();
@@ -245,32 +233,21 @@ export class SkinsService {
 
     const weaponsList = Array.from(bestSkinsByWeapon.values());
 
-    const result = [
-      ...weaponsList,
-      ...topGloves,
-      ...topKnives,
-      ...topAgents,
-    ].sort((a, b) => {
-      const weaponA = a.weapon?.toLowerCase() || '';
-      const weaponB = b.weapon?.toLowerCase() || '';
+    return [...weaponsList, ...topGloves, ...topKnives, ...topAgents].sort(
+      (a, b) => {
+        const weaponA = a.weapon?.toLowerCase() || '';
+        const weaponB = b.weapon?.toLowerCase() || '';
+        const indexA = this.PRIORITY_WEAPONS.indexOf(weaponA);
+        const indexB = this.PRIORITY_WEAPONS.indexOf(weaponB);
+        const isPriorityA = indexA !== -1;
+        const isPriorityB = indexB !== -1;
 
-      const indexA = this.PRIORITY_WEAPONS.indexOf(weaponA);
-      const indexB = this.PRIORITY_WEAPONS.indexOf(weaponB);
+        if (isPriorityA && isPriorityB) return indexA - indexB;
+        if (isPriorityA) return -1;
+        if (isPriorityB) return 1;
 
-      const isPriorityA = indexA !== -1;
-      const isPriorityB = indexB !== -1;
-
-      if (isPriorityA && isPriorityB) {
-        return indexA - indexB;
-      }
-
-      if (isPriorityA) return -1;
-
-      if (isPriorityB) return 1;
-
-      return this.calculateScore(a, mode) - this.calculateScore(b, mode);
-    });
-
-    return result;
+        return this.calculateScore(a, mode) - this.calculateScore(b, mode);
+      },
+    );
   }
 }
