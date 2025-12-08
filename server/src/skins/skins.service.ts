@@ -11,6 +11,7 @@ import { FindLoadoutDto } from './dto/find-loadout.dto';
 import { FindSimilarDto, FindSkinsDto } from './dto/find-skins.dto';
 import { SkinDto, SkinResponseDto, type Histogram } from './dto/skin.dto';
 import { SkinsRepository } from './skins.repository';
+
 @Injectable()
 export class SkinsService {
   private readonly PRIORITY_WEAPONS = [
@@ -186,28 +187,64 @@ export class SkinsService {
     );
 
     const mode = dto.mode || 'premium';
+    const lockedIds = new Set(dto.lockedIds || []);
+    const maxBudgetCents = dto.maxBudget ? dto.maxBudget * 100 : Infinity;
+
+    const lockedSkins: SkinResponseDto[] = [];
+    let currentSpent = 0;
+
+    const lockedWeapons = new Set<string>();
+    let hasLockedKnife = false;
+    let hasLockedGlove = false;
+    let hasLockedAgent = false;
+
+    if (lockedIds.size > 0) {
+      for (const skin of allSkinsWithPrice) {
+        if (lockedIds.has(skin.id)) {
+          lockedSkins.push(skin);
+          currentSpent += skin.price?.min || 0;
+
+          if (skin.type === 'knife') hasLockedKnife = true;
+          else if (skin.type === 'glove') hasLockedGlove = true;
+          else if (skin.type === 'agent') hasLockedAgent = true;
+          else if (skin.weapon) lockedWeapons.add(skin.weapon);
+        }
+      }
+    }
+
+    let remainingBudget = maxBudgetCents - currentSpent;
+    if (remainingBudget < 0) remainingBudget = 0;
+
+    const resultSkins: SkinResponseDto[] = [...lockedSkins];
 
     const bestSkinsByWeapon = new Map<string, SkinResponseDto>();
     const gloves: SkinResponseDto[] = [];
     const knives: SkinResponseDto[] = [];
     const agents: SkinResponseDto[] = [];
 
-    for (const skin of allSkinsWithPrice) {
+    const affordableSkins = allSkinsWithPrice.filter((skin) => {
+      if (lockedIds.has(skin.id)) return false;
+
+      const price = skin.price?.min || 0;
+      return price <= remainingBudget;
+    });
+
+    for (const skin of affordableSkins) {
       if (skin.type === 'glove') {
-        gloves.push(skin);
+        if (!hasLockedGlove) gloves.push(skin);
         continue;
       }
       if (skin.type === 'knife') {
-        knives.push(skin);
+        if (!hasLockedKnife) knives.push(skin);
         continue;
       }
       if (skin.type === 'agent') {
-        agents.push(skin);
+        if (!hasLockedAgent) agents.push(skin);
         continue;
       }
 
       const weapon = skin.weapon;
-      if (!weapon) continue;
+      if (!weapon || lockedWeapons.has(weapon)) continue;
 
       const currentBest = bestSkinsByWeapon.get(weapon);
 
@@ -223,32 +260,38 @@ export class SkinsService {
       }
     }
 
-    const topGloves = gloves
-      .sort(
-        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
-      )
-      .slice(0, 5);
+    if (!hasLockedGlove) {
+      const topGloves = gloves
+        .sort(
+          (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+        )
+        .slice(0, 5);
 
-    const topKnives = knives
-      .sort(
-        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
-      )
-      .slice(0, 5);
+      resultSkins.push(...topGloves);
+    }
 
-    const topAgents = agents
-      .sort(
-        (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
-      )
-      .slice(0, 5);
+    if (!hasLockedKnife) {
+      const topKnives = knives
+        .sort(
+          (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+        )
+        .slice(0, 5);
+      resultSkins.push(...topKnives);
+    }
+
+    if (!hasLockedAgent) {
+      const topAgents = agents
+        .sort(
+          (a, b) => this.calculateScore(a, mode) - this.calculateScore(b, mode),
+        )
+        .slice(0, 5);
+      resultSkins.push(...topAgents);
+    }
 
     const weaponsList = Array.from(bestSkinsByWeapon.values());
+    resultSkins.push(...weaponsList);
 
-    const result = [
-      ...weaponsList,
-      ...topGloves,
-      ...topKnives,
-      ...topAgents,
-    ].sort((a, b) => {
+    return resultSkins.sort((a, b) => {
       const weaponA = a.weapon?.toLowerCase() || '';
       const weaponB = b.weapon?.toLowerCase() || '';
 
@@ -258,17 +301,11 @@ export class SkinsService {
       const isPriorityA = indexA !== -1;
       const isPriorityB = indexB !== -1;
 
-      if (isPriorityA && isPriorityB) {
-        return indexA - indexB;
-      }
-
+      if (isPriorityA && isPriorityB) return indexA - indexB;
       if (isPriorityA) return -1;
-
       if (isPriorityB) return 1;
 
       return this.calculateScore(a, mode) - this.calculateScore(b, mode);
     });
-
-    return result;
   }
 }

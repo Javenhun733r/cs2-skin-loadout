@@ -9,6 +9,8 @@ interface LoadoutHeaderProps {
 	onRemoveColor: (index: number) => void;
 	onAddColor: () => void;
 	onSetMode: (mode: LoadoutMode) => void;
+	maxBudget?: number;
+	onBudgetChange: (val: number | undefined) => void;
 }
 
 export function LoadoutHeader({
@@ -18,6 +20,8 @@ export function LoadoutHeader({
 	onRemoveColor,
 	onAddColor,
 	onSetMode,
+	maxBudget,
+	onBudgetChange,
 }: LoadoutHeaderProps) {
 	return (
 		<div className='LoadoutHeader'>
@@ -78,6 +82,29 @@ export function LoadoutHeader({
 							+
 						</button>
 					)}
+				</div>
+				<div
+					className='BudgetInputContainer'
+					style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+				>
+					<span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Max $:</span>
+					<input
+						type='number'
+						placeholder='No Limit'
+						value={maxBudget || ''}
+						onChange={e => {
+							const val = parseInt(e.target.value);
+							onBudgetChange(isNaN(val) ? undefined : val);
+						}}
+						style={{
+							width: '80px',
+							padding: '8px',
+							borderRadius: '8px',
+							border: '1px solid var(--color-border)',
+							background: 'rgba(0,0,0,0.2)',
+							color: 'var(--color-text-primary)',
+						}}
+					/>
 				</div>
 				<div className='ModeToggleCompact'>
 					<button

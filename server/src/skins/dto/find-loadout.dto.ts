@@ -50,4 +50,21 @@ export class FindLoadoutDto {
   @Transform(({ value }: { value: unknown }) => parseFloat(String(value)))
   @Min(0)
   threshold?: number;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => parseInt(String(value), 10))
+  @IsInt()
+  @Min(0)
+  maxBudget?: number;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value === 'string') {
+      return value.split(',').filter(Boolean);
+    }
+    return Array.isArray(value) ? (value as string[]) : [];
+  })
+  @IsArray()
+  @IsString({ each: true })
+  lockedIds?: string[];
 }

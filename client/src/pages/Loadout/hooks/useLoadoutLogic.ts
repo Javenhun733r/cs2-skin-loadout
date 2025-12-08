@@ -23,7 +23,8 @@ export function useLoadoutLogic() {
 
 	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
-
+	const [lockedIds, setLockedIds] = useState<string[]>([]);
+	const [maxBudget, setMaxBudget] = useState<number | undefined>(undefined);
 	const colorsParam = searchParams.get('colors');
 	const modeParam = (searchParams.get('mode') as LoadoutMode) || 'premium';
 
@@ -47,15 +48,34 @@ export function useLoadoutLogic() {
 		isLoading,
 		error,
 	} = useQuery({
-		queryKey: ['loadout', { colors: colorsParam, mode: modeParam }],
+		queryKey: [
+			'loadout',
+			{ colors: colorsParam, mode: modeParam, maxBudget, lockedIds },
+		],
 		queryFn: () => {
 			if (!colorsParam) return [];
-			return api.fetchLoadout(colorsParam.split(','), modeParam);
+			return api.fetchLoadout(
+				colorsParam.split(','),
+				modeParam,
+				maxBudget,
+				lockedIds
+			);
 		},
 		enabled: !!colorsParam,
 		staleTime: 1000 * 60 * 5,
 	});
-
+	const toggleLock = (skin: Skin) => {
+		setLockedIds(prev => {
+			if (prev.includes(skin.id)) {
+				return prev.filter(id => id !== skin.id);
+			} else {
+				return [...prev, skin.id];
+			}
+		});
+	};
+	const updateMaxBudget = (val: number | undefined) => {
+		setMaxBudget(val);
+	};
 	const categorized = useMemo(() => {
 		const newLoadout: CategorizedLoadout = {
 			agent: null,
@@ -172,5 +192,9 @@ export function useLoadoutLogic() {
 		addColor,
 		removeColor,
 		handleCardClick,
+		lockedIds,
+		toggleLock,
+		maxBudget,
+		updateMaxBudget,
 	};
 }

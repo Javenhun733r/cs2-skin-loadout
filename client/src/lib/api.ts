@@ -78,13 +78,27 @@ export async function findSimilarSkinsBySkinId(
 
 export async function fetchLoadout(
 	colors: string[] | string,
-	mode: 'premium' | 'budget' = 'premium'
+	mode: 'premium' | 'budget' = 'premium',
+	maxBudget?: number,
+	lockedIds?: string[]
 ): Promise<SkinWithDistance[]> {
 	const colorsArray = Array.isArray(colors) ? colors : [colors];
 	const hexColors = colorsArray.map(c => c.replace('#', '')).join(',');
 
 	const params = new URLSearchParams({ colors: hexColors, mode: mode });
 
+	if (maxBudget) {
+		params.append('maxBudget', String(maxBudget));
+	}
+
+	if (lockedIds && lockedIds.length > 0) {
+		params.append('lockedIds', lockedIds.join(','));
+	}
+
 	const response = await fetch(`${API_URL}/skins/loadout?${params}`);
 	return handleResponse<SkinWithDistance[]>(response);
+}
+export async function getSteamInventory(steamId: string): Promise<Skin[]> {
+	const response = await fetch(`${API_URL}/steam/inventory/${steamId}`);
+	return handleResponse<Skin[]>(response);
 }

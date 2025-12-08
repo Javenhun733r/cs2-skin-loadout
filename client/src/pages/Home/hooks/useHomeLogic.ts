@@ -5,13 +5,13 @@ import { useDebounce } from '../../../hooks/useDebounce';
 import * as api from '../../../lib/api';
 import { HISTOGRAM_COLOR_MAP } from '../../../lib/constants';
 import type { Skin } from '../../../types/types';
-
+import { useEffect } from 'react';
 export type SearchMode = 'premium' | 'budget';
 
 export function useHomeLogic() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const navigate = useNavigate();
-
+	const steamIdQuery = searchParams.get('steamId');
 	const nameQuery = searchParams.get('name');
 	const colorsQuery = searchParams.get('colors');
 	const skinIdQuery = searchParams.get('skinId');
@@ -26,7 +26,11 @@ export function useHomeLogic() {
 	const [suggestionQuery, setSuggestionQuery] = useState('');
 
 	const debouncedSuggestionQuery = useDebounce(suggestionQuery, 300);
-
+	useEffect(() => {
+		if (!searchParams.get('skinId') && !searchParams.get('steamId')) {
+			setSelectedSkin(null);
+		}
+	}, [searchParams]);
 	const { data: suggestions = [] } = useQuery({
 		queryKey: ['searchSuggestions', debouncedSuggestionQuery],
 		queryFn: () => api.searchSkinsByName(debouncedSuggestionQuery),
@@ -42,9 +46,17 @@ export function useHomeLogic() {
 		isLoading,
 		error,
 	} = useInfiniteQuery({
-		queryKey: ['skins', { nameQuery, colorsQuery, skinIdQuery, modeQuery }],
+		queryKey: [
+			'skins',
+			{ nameQuery, colorsQuery, skinIdQuery, steamIdQuery, modeQuery },
+		],
 		queryFn: async ({ pageParam = 1 }) => {
-			if (skinIdQuery) {
+			if (steamIdQuery) {
+				if (pageParam > 1) return [];
+				const results = await api.getSteamInventory(steamIdQuery);
+
+				return results.map(s => ({ ...s, distance: 0 }));
+			} else if (skinIdQuery) {
 				return api.findSimilarSkinsBySkinId(
 					skinIdQuery,
 					20,
@@ -53,7 +65,6 @@ export function useHomeLogic() {
 				);
 			} else if (nameQuery) {
 				const results = await api.searchSkinsByName(nameQuery, pageParam);
-
 				return results.map(s => ({ ...s, distance: 0 }));
 			} else if (colorsQuery) {
 				const colorArray = colorsQuery.split(',');
@@ -67,12 +78,13 @@ export function useHomeLogic() {
 			return [];
 		},
 		getNextPageParam: (lastPage, allPages) => {
+			if (steamIdQuery) return undefined;
 			return lastPage.length === 20 ? allPages.length + 1 : undefined;
 		},
-		enabled: !!(nameQuery || colorsQuery || skinIdQuery),
+
+		enabled: !!(nameQuery || colorsQuery || skinIdQuery || steamIdQuery),
 		initialPageParam: 1,
 	});
-
 	const similarSkins = data?.pages.flat() || [];
 
 	const handleColorChange = (index: number, newColor: string) => {

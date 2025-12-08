@@ -27,6 +27,10 @@ export default function LoadoutPage() {
 		addColor,
 		removeColor,
 		handleCardClick,
+		lockedIds,
+		toggleLock,
+		maxBudget,
+		updateMaxBudget,
 	} = useLoadoutLogic();
 
 	const hasItems =
@@ -97,6 +101,30 @@ export default function LoadoutPage() {
 						)}
 					</div>
 
+					<div
+						className='BudgetInputContainer'
+						style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+					>
+						<span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Max $:</span>
+						<input
+							type='number'
+							placeholder='No Limit'
+							value={maxBudget || ''}
+							onChange={e => {
+								const val = parseInt(e.target.value);
+								updateMaxBudget(isNaN(val) ? undefined : val);
+							}}
+							style={{
+								width: '80px',
+								padding: '8px',
+								borderRadius: '8px',
+								border: '1px solid var(--color-border)',
+								background: 'rgba(0,0,0,0.2)',
+								color: 'var(--color-text-primary)',
+							}}
+						/>
+					</div>
+
 					<div className='ModeToggleCompact'>
 						<button
 							className={`ModeButton ${mode === 'premium' ? 'active' : ''}`}
@@ -130,8 +158,30 @@ export default function LoadoutPage() {
 							<div
 								className='AgentCard'
 								onClick={() => handleCardClick(categorized.agent!)}
-								style={{ cursor: 'pointer' }}
+								style={{
+									cursor: 'pointer',
+									borderColor: lockedIds.includes(categorized.agent.id)
+										? 'var(--color-accent)'
+										: undefined,
+								}}
 							>
+								<button
+									className={`LockBtn ${
+										lockedIds.includes(categorized.agent.id) ? 'locked' : ''
+									}`}
+									onClick={e => {
+										e.stopPropagation();
+										toggleLock(categorized.agent!);
+									}}
+									title={
+										lockedIds.includes(categorized.agent.id)
+											? 'Unlock Agent'
+											: 'Lock Agent'
+									}
+								>
+									{lockedIds.includes(categorized.agent.id) ? '🔒' : 'Pk'}
+								</button>
+
 								<img
 									src={categorized.agent.image}
 									alt={categorized.agent.name}
@@ -170,6 +220,8 @@ export default function LoadoutPage() {
 									<SkinCard
 										skin={categorized.knife}
 										onClick={handleCardClick}
+										isLocked={lockedIds.includes(categorized.knife.id)}
+										onToggleLock={toggleLock}
 									/>
 								</div>
 							) : (
@@ -193,6 +245,8 @@ export default function LoadoutPage() {
 									<SkinCard
 										skin={categorized.glove}
 										onClick={handleCardClick}
+										isLocked={lockedIds.includes(categorized.glove.id)}
+										onToggleLock={toggleLock}
 									/>
 								</div>
 							) : (
@@ -201,7 +255,12 @@ export default function LoadoutPage() {
 						</div>
 					</div>
 
-					<LoadoutDisplay loadout={categorized} onCardClick={handleCardClick} />
+					<LoadoutDisplay
+						loadout={categorized}
+						onCardClick={handleCardClick}
+						lockedIds={lockedIds}
+						onToggleLock={toggleLock}
+					/>
 				</div>
 			)}
 
