@@ -127,6 +127,7 @@
 	position: relative;
 	border: 1px solid var(--glass-border);
 	transition: border-color 0.3s ease;
+	overflow: hidden;
 }
 
 .ModalImageContainer:hover {
@@ -143,6 +144,46 @@
 
 .ModalImageContainer:hover .ModalImage {
 	transform: scale(1.08) rotate(-3deg);
+}
+
+.InspectButton {
+	position: absolute;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%) translateY(200%);
+	background: rgba(0, 0, 0, 0.7);
+	backdrop-filter: blur(8px);
+	-webkit-backdrop-filter: blur(8px);
+	color: white;
+	padding: 10px 24px;
+	border-radius: 30px;
+	text-decoration: none;
+	font-size: 0.9rem;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	border: 1px solid rgba(255, 255, 255, 0.2);
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	z-index: 10;
+	opacity: 0;
+	box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.InspectButton span {
+	font-size: 1.1rem;
+}
+
+.ModalImageContainer:hover .InspectButton {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0);
+}
+
+.InspectButton:hover {
+	background: var(--rarity-color);
+	border-color: var(--rarity-color);
+	color: black;
+	box-shadow: 0 0 20px var(--rarity-color);
 }
 
 .MarketLinks h4 {
@@ -211,5 +252,13 @@
 
 	.ModalImage {
 		max-height: 200px;
+	}
+
+	.InspectButton {
+		opacity: 1;
+		transform: translateX(-50%) translateY(0);
+		bottom: 10px;
+		padding: 8px 16px;
+		font-size: 0.8rem;
 	}
 }

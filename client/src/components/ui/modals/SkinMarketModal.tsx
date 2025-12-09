@@ -31,6 +31,30 @@ export function SkinMarketModal({
 	const links = skin ? getMarketplaceLinks(skin.name) : [];
 	const rarityColor = skin ? getRarityColor(skin.rarity) : '#ccc';
 
+	const getCSGOSkinsUrl = (name: string) => {
+		let slug = name.toLowerCase();
+
+		slug = slug.replace('★ ', '');
+		slug = slug.replace('stattrak™ ', '');
+		slug = slug.replace('souvenir ', '');
+
+		slug = slug.split('(')[0];
+
+		slug = slug.trim();
+
+		slug = slug.replace(/ \| /g, '-');
+
+		slug = slug.replace(/\s+/g, '-');
+
+		slug = slug.replace(/[^a-z0-9-]/g, '');
+
+		slug = slug.replace(/-+/g, '-');
+
+		return `https://csgoskins.gg/items/${slug}#inspect-container`;
+	};
+
+	const inspectUrl = skin ? getCSGOSkinsUrl(skin.name) : '#';
+
 	return createPortal(
 		<AnimatePresence>
 			{isOpen && skin && (
@@ -76,6 +100,16 @@ export function SkinMarketModal({
 						<div className='ModalBody'>
 							<div className='ModalImageContainer'>
 								<img src={skin.image} alt={skin.name} className='ModalImage' />
+
+								<a
+									href={inspectUrl}
+									target='_blank'
+									rel='noopener noreferrer'
+									className='InspectButton'
+									title='Inspect 3D Model on CSGOSkins.gg'
+								>
+									<span>🧊</span> 3D Inspection
+								</a>
 							</div>
 
 							<div className='MarketLinks'>

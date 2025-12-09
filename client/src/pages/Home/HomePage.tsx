@@ -16,13 +16,7 @@ import { useHomeLogic } from './hooks/useHomeLogic';
 function HomePage() {
 	const [modalSkin, setModalSkin] = useState<Skin | null>(null);
 	const [isModalOpen, setIsModalOpen] = useState(false);
-
 	const [isSearchOpen, setIsSearchOpen] = useState(true);
-
-	const [isInventoryLoading, setIsInventoryLoading] = useState(false);
-	const [inventorySkins, setInventorySkins] = useState<Skin[]>([]);
-	const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
-	const [visibleInventoryCount, setVisibleInventoryCount] = useState(10);
 
 	const [searchParams] = useSearchParams();
 	const isTextSearch = !!searchParams.get('name');
@@ -41,20 +35,28 @@ function HomePage() {
 		handleColorPickerSearch,
 		handleTextSearch,
 		handleSkinSelect,
-
 		suggestionQuery,
 		setSuggestionQuery,
 		suggestions,
-
 		handleFindLoadout,
 		loadMore,
 		hasMore,
+
+		isInventoryLoading,
+		handleImportInventory,
+		inventorySkins,
+		isInventoryModalOpen,
+		setIsInventoryModalOpen,
+		visibleInventoryCount,
+		handleLoadMoreInventory,
 	} = useHomeLogic();
+
 	useEffect(() => {
 		if ([...searchParams.keys()].length === 0) {
 			setIsSearchOpen(true);
 		}
 	}, [searchParams]);
+
 	const handleCardClick = (skin: Skin) => {
 		setModalSkin(skin);
 		setIsModalOpen(true);
@@ -70,9 +72,7 @@ function HomePage() {
 
 	const onInventoryItemClick = (skin: Skin) => {
 		handleSkinSelect(skin);
-
 		setIsInventoryModalOpen(false);
-
 		setIsSearchOpen(false);
 	};
 
@@ -91,54 +91,8 @@ function HomePage() {
 		setIsSearchOpen(false);
 	};
 
-	const handleImportInventory = async () => {
-		const steamInput = prompt(
-			'Enter your Steam ID, Custom URL, or Profile Link:'
-		);
-		if (!steamInput) return;
-
-		setIsInventoryLoading(true);
-		try {
-			const response = await fetch(
-				`${
-					import.meta.env.VITE_API_URL || '/api'
-				}/steam/inventory/${encodeURIComponent(steamInput)}`
-			);
-
-			if (!response.ok) {
-				const err = await response.json();
-				throw new Error(err.message || 'Failed to fetch');
-			}
-
-			const skins: Skin[] = await response.json();
-
-			if (skins.length === 0) {
-				alert('No matching skins found in public inventory.');
-			} else {
-				setInventorySkins(skins);
-				setVisibleInventoryCount(50);
-
-				setIsInventoryModalOpen(true);
-			}
-		} catch (e) {
-			console.error(e);
-			alert(`Error: ${(e as Error).message}`);
-		} finally {
-			setIsInventoryLoading(false);
-		}
-	};
-
-	const handleLoadMoreInventory = () => {
-		setVisibleInventoryCount(prev => prev + 50);
-	};
-
 	const searchAreaVariants = {
-		open: {
-			opacity: 1,
-			height: 'auto',
-			marginBottom: '2rem',
-			scale: 1,
-		},
+		open: { opacity: 1, height: 'auto', marginBottom: '2rem', scale: 1 },
 		closed: {
 			opacity: 0,
 			height: 0,
@@ -172,9 +126,7 @@ function HomePage() {
 								searchMode={searchMode}
 								setSearchMode={setSearchMode}
 							/>
-
 							<span className='Divider'>OR</span>
-
 							<TextSearchPanel
 								query={suggestionQuery}
 								onQueryChange={setSuggestionQuery}
@@ -228,6 +180,7 @@ function HomePage() {
 			</div>
 
 			<main>
+				{}
 				{selectedSkin && (
 					<div className='SelectedSkinArea'>
 						<h3>Base Skin:</h3>

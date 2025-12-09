@@ -1,11 +1,10 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDebounce } from '../../../hooks/useDebounce';
 import * as api from '../../../lib/api';
 import { HISTOGRAM_COLOR_MAP } from '../../../lib/constants';
 import type { Skin } from '../../../types/types';
-import { useEffect } from 'react';
 export type SearchMode = 'premium' | 'budget';
 
 export function useHomeLogic() {
@@ -16,7 +15,9 @@ export function useHomeLogic() {
 	const colorsQuery = searchParams.get('colors');
 	const skinIdQuery = searchParams.get('skinId');
 	const modeQuery = (searchParams.get('mode') as SearchMode) || 'premium';
-
+	const [inventorySkins, setInventorySkins] = useState<Skin[]>([]);
+	const [isInventoryModalOpen, setIsInventoryModalOpen] = useState(false);
+	const [visibleInventoryCount, setVisibleInventoryCount] = useState(10);
 	const [colors, setColors] = useState<string[]>(() => {
 		const c = searchParams.get('colors');
 		return c ? c.split(',').map(hex => `#${hex}`) : ['#663399'];
@@ -119,7 +120,37 @@ export function useHomeLogic() {
 		setSuggestionQuery('');
 		setSearchParams({ skinId: skin.id, mode: searchMode });
 	};
+	const { mutate: fetchInventory, isPending: isInventoryLoading } = useMutation(
+		{
+			mutationFn: (steamId: string) => api.getSteamInventory(steamId),
+			onSuccess: skins => {
+				if (skins.length === 0) {
+					alert('No matching skins found in public inventory.');
+				} else {
+					setInventorySkins(skins);
+					setVisibleInventoryCount(50);
+					setIsInventoryModalOpen(true);
+				}
+			},
+			onError: err => {
+				console.error(err);
+				alert(`Error: ${(err as Error).message}`);
+			},
+		}
+	);
 
+	const handleImportInventory = useCallback(() => {
+		const steamInput = prompt(
+			'Enter your Steam ID, Custom URL, or Profile Link:'
+		);
+		if (steamInput) {
+			fetchInventory(steamInput);
+		}
+	}, [fetchInventory]);
+
+	const handleLoadMoreInventory = () => {
+		setVisibleInventoryCount(prev => prev + 50);
+	};
 	const handleFindLoadout = useCallback(() => {
 		let targetColors: string[] = [];
 
@@ -172,5 +203,12 @@ export function useHomeLogic() {
 		suggestionQuery,
 		setSuggestionQuery,
 		suggestions,
+		isInventoryLoading,
+		handleImportInventory,
+		inventorySkins,
+		isInventoryModalOpen,
+		setIsInventoryModalOpen,
+		visibleInventoryCount,
+		handleLoadMoreInventory,
 	};
 }
